@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">AirShare</string>
+    <string name="ble_not_supported">This device does not support Bluetooth LE.</string>
+    <string name="bt_unavailable">Bluetooth LE is not available on this device.</string>
+</resources>
