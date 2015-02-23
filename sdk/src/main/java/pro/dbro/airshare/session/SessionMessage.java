@@ -53,11 +53,20 @@ public abstract class SessionMessage {
     /**
      * Serialize this SessionMessage for transport.
      *
-     * length should never be less than {@link #MAX_HEADER_LENGTH_BYTES}
+     * The general format of the serialized bytstream:
+     *
+     * byte idx | description
+     * ---------|------------
+     * [0-2]    | Header length
+     * [2-X]    | Header (json string)
+     * [X-Y]    | Payload
+     *
+     * @param length should never be less than {@link #MAX_HEADER_LENGTH_BYTES}
+     *
      */
     public byte[] serialize(int offset, int length) {
-        // write header length in bytes
 
+        // Cache serialized version of header HashMap if necessary
         if (cachedHeader == null) {
             HashMap<String, Object> headers = populateHeaders();
             cachedHeader = new JSONObject(headers).toString().getBytes();
@@ -67,6 +76,7 @@ public abstract class SessionMessage {
 
         try {
             int idx = 0;
+            // Write SessionMessage header length if offset dictates
             if (offset + idx < MAX_HEADER_LENGTH_BYTES) {
                 outputStream.write(
                         ByteBuffer.allocate(MAX_HEADER_LENGTH_BYTES)
@@ -75,6 +85,7 @@ public abstract class SessionMessage {
 
                 idx += MAX_HEADER_LENGTH_BYTES;
             }
+            // Write SessionMessage HashMap header if offset dictates
             if (offset + idx < cachedHeader.length) {
                 int headerBytesToCopy = Math.min(length, cachedHeader.length - (offset + idx));
 
@@ -84,6 +95,7 @@ public abstract class SessionMessage {
                 idx += headerBytesToCopy;
             }
 
+            // Write raw payload if offset dictates
             if (idx < length) {
                 int payloadOffset = offset - cachedHeader.length;
                     outputStream.write(getPayloadDataAtOffset(payloadOffset, length - idx));
