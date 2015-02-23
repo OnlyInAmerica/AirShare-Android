@@ -1,5 +1,6 @@
 package pro.dbro.airshare.transport.ble;
 
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
@@ -15,7 +16,18 @@ import pro.dbro.airshare.transport.Transport;
  */
 public class BLETransport extends Transport implements ConnectionListener {
 
-    private UUID          serviceUUID = UUID.fromString("96F22BCA-F08C-43F9-BF7D-EEBC579C94D2");
+    private final UUID serviceUUID = UUID.fromString("B491602C-C912-47AE-B639-9C17A4AADB06");
+    private final UUID dataUUID    = UUID.fromString("72A7700C-859D-4317-9E35-D7F5A93005B1");
+
+    private final BluetoothGattCharacteristic dataCharacteristic
+            = new BluetoothGattCharacteristic(dataUUID,
+                                              BluetoothGattCharacteristic.PROPERTY_READ |
+                                              BluetoothGattCharacteristic.PROPERTY_WRITE |
+                                              BluetoothGattCharacteristic.PROPERTY_INDICATE,
+
+                                              BluetoothGattCharacteristic.PERMISSION_READ |
+                                              BluetoothGattCharacteristic.PERMISSION_WRITE);
+
     private BLECentral    central;
     private BLEPeripheral peripheral;
 
@@ -32,6 +44,7 @@ public class BLETransport extends Transport implements ConnectionListener {
         central.setConnectionListener(this);
         peripheral = new BLEPeripheral(context, serviceUUID);
         peripheral.setConnectionListener(this);
+        peripheral.addCharacteristic(dataCharacteristic);
     }
 
     private UUID generateUUIDFromString(String input) {
@@ -54,24 +67,44 @@ public class BLETransport extends Transport implements ConnectionListener {
     // <editor-fold desc="Transport">
 
     @Override
-    public void sendData(byte[] data, List<String> identifiers) {
+    public boolean sendData(byte[] data, List<String> identifiers) {
+        for (String identifier : identifiers) {
+            boolean didSend = false;
+            if (central.isConnectedTo(identifier)) {
+                dataCharacteristic.setValue(data);
+                central.write(dataCharacteristic, identifier);
+                didSend = true;
+            }
+            else if (peripheral.isConnectedTo(identifier)) {
+                dataCharacteristic.setValue(data);
+                peripheral.indicate(dataCharacteristic, identifier);
+                didSend = true;
+            }
+            else {
+                // TODO : Queue data
+            }
 
+            if (didSend && callback.get() != null)
+                callback.get().dataSentToIdentifier(this, data, identifier);
+            return didSend;
+        }
+        return false;
     }
 
     @Override
     public void advertise() {
-        peripheral.start();
+        if (!peripheral.isAdvertising()) peripheral.start();
     }
 
     @Override
     public void scanForPeers() {
-        central.start();
+        if (!central.isScanning()) central.start();
     }
 
     @Override
     public void stop() {
         if (peripheral.isAdvertising()) peripheral.stop();
-        if (central.isIsScanning()) central.stop();
+        if (central.isScanning()) central.stop();
     }
 
     // </editor-fold desc="Transport">
@@ -80,14 +113,21 @@ public class BLETransport extends Transport implements ConnectionListener {
 
     @Override
     public void connectedTo(String deviceAddress) {
-
+        if (callback.get() != null)
+            callback.get().identifierUpdated(this,
+                                             deviceAddress,
+                                             ConnectionStatus.CONNECTED,
+                                             null);
     }
 
     @Override
     public void disconnectedFrom(String deviceAddress) {
-
+        if (callback.get() != null)
+            callback.get().identifierUpdated(this,
+                                             deviceAddress,
+                                             ConnectionStatus.DISCONNECTED,
+                                             null);
     }
 
     // </editor-fold desc="ConnectionListener">
-
 }

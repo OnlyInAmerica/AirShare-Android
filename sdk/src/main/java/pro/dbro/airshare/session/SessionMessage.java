@@ -24,8 +24,8 @@ public abstract class SessionMessage {
     public static final String HEADER_LENGTH = "length";
 
     protected String type;
-    protected long payloadLengthBytes;
-    private byte[] cachedHeader;
+    protected long   payloadLengthBytes;
+    private   byte[] cachedHeader;
 
     public SessionMessage() {
         type = getClass().getSimpleName();

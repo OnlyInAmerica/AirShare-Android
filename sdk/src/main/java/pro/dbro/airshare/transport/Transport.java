@@ -23,6 +23,10 @@ public abstract class Transport {
                                                byte[] data,
                                                String identifier);
 
+        public void dataSentToIdentifier(Transport transport,
+                                         byte[] data,
+                                         String identifier);
+
         public void identifierUpdated(Transport transport,
                                       String identifier,
                                       ConnectionStatus status,
@@ -43,7 +47,7 @@ public abstract class Transport {
         return callback.get();
     }
 
-    public abstract void sendData(byte[] data, List<String> identifier);
+    public abstract boolean sendData(byte[] data, List<String> identifier);
 
     public abstract void advertise();
 

@@ -64,7 +64,12 @@ public class Session implements Transport.TransportCallback {
     }
 
     @Override
-    public void identifierUpdated(Transport transport, String identifier, Map<String, Object> extraInfo) {
+    public void dataSentToIdentifier(Transport transport, byte[] data, String identifier) {
+
+    }
+
+    @Override
+    public void identifierUpdated(Transport transport, String identifier, Transport.ConnectionStatus status, Map<String, Object> extraInfo) {
 
     }
 
