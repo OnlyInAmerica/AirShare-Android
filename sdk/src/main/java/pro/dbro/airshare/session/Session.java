@@ -3,6 +3,7 @@ package pro.dbro.airshare.session;
 import android.widget.ImageView;
 
 import java.lang.ref.WeakReference;
+import java.util.Map;
 
 import pro.dbro.airshare.LocalPeer;
 import pro.dbro.airshare.Peer;
@@ -63,7 +64,7 @@ public class Session implements Transport.TransportCallback {
     }
 
     @Override
-    public void identifierUpdated(Transport transport, String identifier) {
+    public void identifierUpdated(Transport transport, String identifier, Map<String, Object> extraInfo) {
 
     }
 

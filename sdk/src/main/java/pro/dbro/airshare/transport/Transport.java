@@ -11,6 +11,12 @@ import java.util.Map;
  */
 public abstract class Transport {
 
+    public static enum ConnectionStatus {
+        DISCONNECTED,
+        CONNECTING,
+        CONNECTED
+    }
+
     public static interface TransportCallback {
 
         public void dataReceivedFromIdentifier(Transport transport,
@@ -19,6 +25,7 @@ public abstract class Transport {
 
         public void identifierUpdated(Transport transport,
                                       String identifier,
+                                      ConnectionStatus status,
                                       Map<String, Object> extraInfo);
 
     }

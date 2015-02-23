@@ -19,16 +19,10 @@ import timber.log.Timber;
  */
 public class SessionManager implements Transport.TransportCallback, Session.SessionCallback {
 
-    public static enum PeerStatus {
-        DISCONNECTED,
-        CONNECTING,
-        CONNECTED
-    }
-
     public interface SessionManagerCallback {
         public void errorEstablishingSession(SessionManager manager, Exception e);
         public void sessionEstablished(SessionManager manager, Session session);
-        public void peerStatusUpdated(Peer peer, PeerStatus newStatus);
+        public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus);
     }
 
     private Context context;
@@ -95,7 +89,12 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
     }
 
     @Override
-    public void identifierUpdated(Transport transport, String identifier, Map<String, Object> extraInfo) {
+    public void identifierUpdated(Transport transport,
+                                  String identifier,
+                                  Transport.ConnectionStatus status,
+                                  Map<String, Object> extraInfo) {
+
+
 
     }
 
