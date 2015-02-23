@@ -18,7 +18,7 @@ import pro.dbro.airshare.transport.Transport;
  */
 public class BLETransport extends Transport implements ConnectionListener {
 
-    private final UUID serviceUUID = UUID.fromString("B491602C-C912-47AE-B639-9C17A4AADB06");
+    private final UUID serviceUUID;
     private final UUID dataUUID    = UUID.fromString("72A7700C-859D-4317-9E35-D7F5A93005B1");
 
     private final BluetoothGattCharacteristic dataCharacteristic
@@ -39,8 +39,7 @@ public class BLETransport extends Transport implements ConnectionListener {
 
         super(serviceName, callback);
 
-        // TODO - Once we determine an algorithm shared between iOS / Android
-        //serviceUUID = generateUUIDFromString(serviceName);
+        serviceUUID = generateUUIDFromString(serviceName);
 
         central = new BLECentral(context, serviceUUID);
         central.setConnectionListener(this);
