@@ -4,6 +4,8 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
+import org.apache.commons.codec.digest.DigestUtils;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -48,14 +50,10 @@ public class BLETransport extends Transport implements ConnectionListener {
     }
 
     private UUID generateUUIDFromString(String input) {
-        String hexString = DataUtil.bytesToHex(input.getBytes());
+        String hexString = DigestUtils.sha1Hex(input);
         StringBuilder uuid = new StringBuilder();
-        for(int x = 0; x < 16; x++) {
-            if (x >= input.length())
-                uuid.append('0');
-            else
-                uuid.append(input.charAt(x));
-        }
+        // UUID has 32 hex 'digits'. SHA1 Hash has 40
+        uuid.insert(9, hexString);
 
         uuid.insert(8, '-');
         uuid.insert(13,'-');
