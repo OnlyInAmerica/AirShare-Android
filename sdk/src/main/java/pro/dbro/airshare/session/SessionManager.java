@@ -3,6 +3,9 @@ package pro.dbro.airshare.session;
 import android.content.Context;
 import android.support.annotation.Nullable;
 
+import org.apache.commons.collections4.BidiMap;
+import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -19,6 +22,9 @@ import timber.log.Timber;
  */
 public class SessionManager implements Transport.TransportCallback, Session.SessionCallback {
 
+    private BidiMap<String, Peer> identifiedPeers = new DualHashBidiMap<>();
+    private BidiMap<String, Peer> identifyingPeers = new DualHashBidiMap<>();
+
     public interface SessionManagerCallback {
         public void errorEstablishingSession(SessionManager manager, Exception e);
         public void sessionEstablished(SessionManager manager, Session session);
@@ -29,6 +35,7 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
     private HashMap<Peer, Set<Transport>> peerTransports;
     private Set<Transport> transports;
     private LocalPeer localPeer;
+    private IdentityMessage localIdentityMessage;
     private SessionManagerCallback callback;
 
     public SessionManager(Context context,
@@ -40,6 +47,8 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
         this.callback = callback;
         this.context = context;
         peerTransports = new HashMap<>();
+
+        localIdentityMessage = new IdentityMessage(localPeer);
 
         initializeTransports(serviceName);
     }
@@ -89,10 +98,27 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
     }
 
     @Override
+    public void dataSentToIdentifier(Transport transport, byte[] data, String identifier) {
+
+    }
+
+    @Override
     public void identifierUpdated(Transport transport,
                                   String identifier,
                                   Transport.ConnectionStatus status,
                                   Map<String, Object> extraInfo) {
+        switch(status) {
+            case CONNECTED:
+                if (shouldIdentifyPeer(identifier)) {
+                    // Send Identity!
+                    transport.sendData(localIdentityMessage.serialize(), identifier);
+                }
+                break;
+
+            case DISCONNECTED:
+
+                break;
+        }
 
 
 
@@ -108,5 +134,9 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
     }
 
     // </editor-fold desc="SessionCallback">
+
+    private boolean shouldIdentifyPeer(String identifer) {
+        return !identifiedPeers.containsKey(identifer) && !identifyingPeers.containsKey(identifer);
+    }
 
 }

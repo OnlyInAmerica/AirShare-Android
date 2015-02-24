@@ -26,7 +26,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import pro.dbro.airshare.transport.ConnectionGovernor;
-import pro.dbro.airshare.transport.ConnectionListener;
 import pro.dbro.airshare.transport.Transport;
 import timber.log.Timber;
 
@@ -52,8 +51,7 @@ public class BLEPeripheral {
     private BluetoothGattServer gattServer;
     private BluetoothGattServerCallback gattCallback;
     private ConnectionGovernor connectionGovernor;
-    private ConnectionListener connectionListener;
-    private Transport.TransportCallback transportCallback;
+    private BLETransportCallback transportCallback;
 
     private boolean isAdvertising = false;
 
@@ -84,12 +82,8 @@ public class BLEPeripheral {
         init();
     }
 
-    public void setTransportCallback(Transport.TransportCallback callback) {
+    public void setTransportCallback(BLETransportCallback callback) {
         transportCallback = callback;
-    }
-
-    public void setConnectionListener(ConnectionListener listener) {
-        connectionListener = listener;
     }
 
     public void setGattCallback(BluetoothGattServerCallback callback) {
@@ -215,14 +209,22 @@ public class BLEPeripheral {
                         // Allow connection to proceed. Mark device connected
                         Timber.d("Accepted connection to " + device.getAddress());
                         connectedDevices.put(device.getAddress(), device);
+                        if (transportCallback != null)
+                            transportCallback.identifierUpdated(BLETransportCallback.DeviceType.PERIPHERAL,
+                                                                device.getAddress(),
+                                                                Transport.ConnectionStatus.CONNECTED,
+                                                                null);
 
                     }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     // We've disconnected
                     Timber.d("Disconnected from " + device.getAddress());
                     connectedDevices.remove(device.getAddress());
-                    if (connectionListener != null)
-                        connectionListener.disconnectedFrom(device.getAddress());
+                    if (transportCallback != null)
+                        transportCallback.identifierUpdated(BLETransportCallback.DeviceType.PERIPHERAL,
+                                                            device.getAddress(),
+                                                            Transport.ConnectionStatus.DISCONNECTED,
+                                                            null);
                 }
                 super.onConnectionStateChange(device, status, newState);
             }
@@ -241,7 +243,9 @@ public class BLEPeripheral {
                 if (localCharacteristic != null) {
 
                     if (transportCallback != null)
-                        transportCallback.dataReceivedFromIdentifier(null, value, remoteCentral.getAddress());
+                        transportCallback.dataReceivedFromIdentifier(BLETransportCallback.DeviceType.PERIPHERAL,
+                                                                     value,
+                                                                     remoteCentral.getAddress());
 
                     if (responseNeeded) {
                         boolean success = gattServer.sendResponse(remoteCentral, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);

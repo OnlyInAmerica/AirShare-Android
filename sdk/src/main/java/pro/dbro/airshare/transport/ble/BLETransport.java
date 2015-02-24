@@ -7,16 +7,22 @@ import android.support.annotation.NonNull;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-import pro.dbro.airshare.DataUtil;
-import pro.dbro.airshare.transport.ConnectionListener;
 import pro.dbro.airshare.transport.Transport;
+import timber.log.Timber;
 
 /**
+ * Bluetooth Low Energy Transport. Requires Android 5.0.
+ *
+ * Note that only the Central device reports device connection events to {@link #callback}
+ * in this implementation.
+ * See {@link #identifierUpdated(pro.dbro.airshare.transport.ble.BLETransportCallback.DeviceType, String, pro.dbro.airshare.transport.Transport.ConnectionStatus, java.util.Map)}
+ *
  * Created by davidbrodsky on 2/21/15.
  */
-public class BLETransport extends Transport implements ConnectionListener {
+public class BLETransport extends Transport implements BLETransportCallback {
 
     private final UUID serviceUUID;
     private final UUID dataUUID    = UUID.fromString("72A7700C-859D-4317-9E35-D7F5A93005B1");
@@ -42,9 +48,10 @@ public class BLETransport extends Transport implements ConnectionListener {
         serviceUUID = generateUUIDFromString(serviceName);
 
         central = new BLECentral(context, serviceUUID);
-        central.setConnectionListener(this);
+        central.setTransportCallback(this);
+
         peripheral = new BLEPeripheral(context, serviceUUID);
-        peripheral.setConnectionListener(this);
+        peripheral.setTransportCallback(this);
         peripheral.addCharacteristic(dataCharacteristic);
     }
 
@@ -65,27 +72,36 @@ public class BLETransport extends Transport implements ConnectionListener {
 
     @Override
     public boolean sendData(byte[] data, List<String> identifiers) {
-        for (String identifier : identifiers) {
-            boolean didSend = false;
-            if (central.isConnectedTo(identifier)) {
-                dataCharacteristic.setValue(data);
-                central.write(dataCharacteristic, identifier);
-                didSend = true;
-            }
-            else if (peripheral.isConnectedTo(identifier)) {
-                dataCharacteristic.setValue(data);
-                peripheral.indicate(dataCharacteristic, identifier);
-                didSend = true;
-            }
-            else {
-                // TODO : Queue data
-            }
+        boolean didSendAll = true;
 
-            if (didSend && callback.get() != null)
-                callback.get().dataSentToIdentifier(this, data, identifier);
-            return didSend;
+        for (String identifier : identifiers) {
+            boolean didSend = sendData(data, identifier);
+
+            if (!didSend) didSendAll = false;
         }
-        return false;
+        return didSendAll;
+    }
+
+    @Override
+    public boolean sendData(byte[] data, String identifier) {
+        boolean didSend = false;
+        if (central.isConnectedTo(identifier)) {
+            dataCharacteristic.setValue(data);
+            didSend = central.write(dataCharacteristic, identifier);
+        }
+        else if (peripheral.isConnectedTo(identifier)) {
+            dataCharacteristic.setValue(data);
+            didSend = peripheral.indicate(dataCharacteristic, identifier);
+        }
+        else {
+            Timber.e("SendData called but peer not connected. Need to buffer data");
+            // TODO : Queue data
+        }
+
+        if (didSend && callback.get() != null)
+            callback.get().dataSentToIdentifier(this, data, identifier);
+
+        return didSend;
     }
 
     @Override
@@ -101,30 +117,35 @@ public class BLETransport extends Transport implements ConnectionListener {
     @Override
     public void stop() {
         if (peripheral.isAdvertising()) peripheral.stop();
-        if (central.isScanning()) central.stop();
+        if (central.isScanning())       central.stop();
     }
 
     // </editor-fold desc="Transport">
 
-    // <editor-fold desc="ConnectionListener">
+    // <editor-fold desc="BLETransportCallback">
 
     @Override
-    public void connectedTo(String deviceAddress) {
+    public void dataReceivedFromIdentifier(DeviceType deviceType, byte[] data, String identifier) {
         if (callback.get() != null)
-            callback.get().identifierUpdated(this,
-                                             deviceAddress,
-                                             ConnectionStatus.CONNECTED,
-                                             null);
+            callback.get().dataReceivedFromIdentifier(this, data, identifier);
     }
 
     @Override
-    public void disconnectedFrom(String deviceAddress) {
+    public void dataSentToIdentifier(DeviceType deviceType, byte[] data, String identifier) {
         if (callback.get() != null)
-            callback.get().identifierUpdated(this,
-                                             deviceAddress,
-                                             ConnectionStatus.DISCONNECTED,
-                                             null);
+            callback.get().dataSentToIdentifier(this, data, identifier);
     }
 
-    // </editor-fold desc="ConnectionListener">
+    @Override
+    public void identifierUpdated(DeviceType deviceType,
+                                  String identifier,
+                                  ConnectionStatus status,
+                                  Map<String, Object> extraInfo) {
+
+        // Only the Central device should initiate device discovery
+        if (deviceType == DeviceType.CENTRAL && callback.get() != null)
+            callback.get().identifierUpdated(this, identifier, status, extraInfo);
+    }
+
+    // </editor-fold desc="BLETransportCallback">
 }

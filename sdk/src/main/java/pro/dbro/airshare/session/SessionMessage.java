@@ -12,6 +12,9 @@ import timber.log.Timber;
 /**
  * Represents a Session segment suitable for transport via a {@link pro.dbro.airshare.transport.Transport}
  *
+ * Note: Children of this class are intended to be immutable. e.g: {@link #populateHeaders()}
+ * will only be called once across multiple serializations.
+ *
  * Created by davidbrodsky on 2/22/15.
  */
 public abstract class SessionMessage {
@@ -44,6 +47,9 @@ public abstract class SessionMessage {
         return type;
     }
 
+    /**
+     * @return the length of the blob payload in bytes
+     */
     public long getDataLengthBytes() {
         return payloadLengthBytes;
     }
@@ -66,11 +72,7 @@ public abstract class SessionMessage {
      */
     public byte[] serialize(int offset, int length) {
 
-        // Cache serialized version of header HashMap if necessary
-        if (cachedHeader == null) {
-            HashMap<String, Object> headers = populateHeaders();
-            cachedHeader = new JSONObject(headers).toString().getBytes();
-        }
+        seralizeAndCacheHeaders();
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
@@ -107,6 +109,31 @@ public abstract class SessionMessage {
         }
 
         return outputStream.toByteArray();
+    }
+
+    /**
+     * Serialize the entire message in one go. Must only be used for messages less than 2 MB.
+     */
+    public byte[] serialize() {
+        if (getTotalLengthBytes() > Integer.MAX_VALUE)
+            Timber.e("Message too long for serialize! Will be truncated");
+
+        return serialize(0, (int) getTotalLengthBytes());
+    }
+
+    /**
+     * @return the length of the total SessionMessage in bytes
+     */
+    private long getTotalLengthBytes() {
+        return MAX_HEADER_LENGTH_BYTES + getDataLengthBytes();
+    }
+
+    private void seralizeAndCacheHeaders() {
+        // Cache serialized version of header HashMap if necessary
+        if (cachedHeader == null) {
+            HashMap<String, Object> headers = populateHeaders();
+            cachedHeader = new JSONObject(headers).toString().getBytes();
+        }
     }
 
 }

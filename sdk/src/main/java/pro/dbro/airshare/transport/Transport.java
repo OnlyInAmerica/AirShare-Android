@@ -49,6 +49,8 @@ public abstract class Transport {
 
     public abstract boolean sendData(byte[] data, List<String> identifier);
 
+    public abstract boolean sendData(byte[] data, String identifier);
+
     public abstract void advertise();
 
     public abstract void scanForPeers();
