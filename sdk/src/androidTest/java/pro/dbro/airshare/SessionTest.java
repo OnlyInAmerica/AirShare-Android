@@ -107,4 +107,5 @@ public class SessionTest extends ApplicationTestCase<Application> {
             }
         }
     }
+
 }

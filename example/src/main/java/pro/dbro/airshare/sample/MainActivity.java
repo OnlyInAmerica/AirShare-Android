@@ -1,10 +1,12 @@
-package pro.dbro.airshare;
+package pro.dbro.airshare.sample;
 
 import android.app.Activity;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+
+import pro.dbro.airshare.sample.R;
 
 
 public class MainActivity extends Activity {

@@ -29,4 +29,5 @@ dependencies {
     compile 'com.jakewharton.timber:timber:2.7.1'
     compile 'org.apache.commons:commons-collections4:4.0'
     compile 'org.apache.directory.studio:org.apache.commons.codec:1.8'
+    compile 'com.google.guava:guava:18.0'
 }
