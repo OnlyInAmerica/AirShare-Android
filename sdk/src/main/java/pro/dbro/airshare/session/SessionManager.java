@@ -22,8 +22,9 @@ import timber.log.Timber;
  */
 public class SessionManager implements Transport.TransportCallback, Session.SessionCallback {
 
+    private HashMap<Peer, Session> sessions = new HashMap<>();
     private BidiMap<String, Peer> identifiedPeers = new DualHashBidiMap<>();
-    private BidiMap<String, Peer> identifyingPeers = new DualHashBidiMap<>();
+    private Set<String> identifyingPeers = new HashSet<>();
 
     public interface SessionManagerCallback {
         public void errorEstablishingSession(SessionManager manager, Exception e);
@@ -78,8 +79,20 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
             return;
         }
 
+        if (sessions.containsKey(peer)) {
+            Timber.w("Session already exists for peer " + peer);
+            return;
+        }
+        // Session now owns transport
         Session session = new Session(transport, localPeer, peer, this);
-        //transport.sendData(null /* getSessionPacket() */, peer);
+        sessions.put(peer, session);
+
+        if (callback != null)
+            callback.sessionEstablished(this, sessions.get(peer));
+    }
+
+    public void takeOwnershipOfTransportFromSession(Session session) {
+        session.getTransport().setTransportCallback(this);
     }
 
     @Nullable
@@ -94,7 +107,7 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
 
     @Override
     public void dataReceivedFromIdentifier(Transport transport, byte[] data, String identifier) {
-
+        // Accumulate data. Should only ever be an IdentityMessage
     }
 
     @Override
@@ -110,13 +123,15 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
         switch(status) {
             case CONNECTED:
                 if (shouldIdentifyPeer(identifier)) {
-                    // Send Identity!
-                    transport.sendData(localIdentityMessage.serialize(), identifier);
+                    if(transport.sendData(localIdentityMessage.serialize(), identifier))
+                        identifyingPeers.add(identifier);
+                    else Timber.w("Failed to send Identity to new peer " + identifier);
                 }
                 break;
 
             case DISCONNECTED:
-
+                // TODO If we have a session with the disconnected peer, return ownership
+                // of Transport it occupied to SessionManager
                 break;
         }
 
@@ -136,7 +151,7 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
     // </editor-fold desc="SessionCallback">
 
     private boolean shouldIdentifyPeer(String identifer) {
-        return !identifiedPeers.containsKey(identifer) && !identifyingPeers.containsKey(identifer);
+        return !identifiedPeers.containsKey(identifer) && !identifyingPeers.contains(identifer);
     }
 
 }

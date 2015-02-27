@@ -287,6 +287,14 @@ public class BLEPeripheral {
                 Timber.d("onExecuteWrite " + device.toString() + " requestId " + requestId);
                 super.onExecuteWrite(device, requestId, execute);
             }
+
+            @Override
+            public void onNotificationSent(BluetoothDevice device, int status) {
+                if (transportCallback != null)
+                    transportCallback.dataSentToIdentifier(BLETransportCallback.DeviceType.PERIPHERAL,
+                                                           null, /** data */
+                                                           device.getAddress());
+            }
         };
 
         gattServer = manager.openGattServer(context, gattCallback);

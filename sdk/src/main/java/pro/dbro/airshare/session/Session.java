@@ -26,8 +26,13 @@ public class Session implements Transport.TransportCallback {
         public void onCompletion(SessionMessage message, Exception exception);
     }
 
-    public Session(Transport transport, LocalPeer localPeer, Peer peer, SessionCallback callback) {
+    public Session(Transport transport,
+                   LocalPeer localPeer,
+                   Peer peer,
+                   SessionCallback callback) {
+
         this.transport = transport;
+        this.transport.setTransportCallback(this);
         this.localPeer = localPeer;
         this.peer = peer;
         this.callback = new WeakReference<>(callback);
@@ -54,6 +59,10 @@ public class Session implements Transport.TransportCallback {
 
     public static void loadIdenticonForSession(Session session, ImageView target, boolean isReceiver) {
 
+    }
+
+    public Transport getTransport() {
+        return transport;
     }
 
     // <editor-fold desc="TransportCallback">

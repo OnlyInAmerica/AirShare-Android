@@ -8,12 +8,12 @@ import java.util.Date;
  */
 public class Peer {
 
-    byte[] publicKey;
-    String alias;
-    Date lastSeen;
-    int rssi;
+    private byte[] publicKey;
+    private String alias;
+    private Date lastSeen;
+    private int rssi;
 
-    protected Peer(byte[] publicKey,
+    public Peer(byte[] publicKey,
                    String alias,
                    Date lastSeen,
                    int rssi) {

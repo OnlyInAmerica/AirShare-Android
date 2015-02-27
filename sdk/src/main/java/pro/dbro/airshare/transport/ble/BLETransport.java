@@ -3,9 +3,16 @@ package pro.dbro.airshare.transport.ble;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.util.Pair;
 
 import org.apache.commons.codec.digest.DigestUtils;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,10 +29,33 @@ import timber.log.Timber;
  *
  * Created by davidbrodsky on 2/21/15.
  */
+
+/**
+ * Every Identifier gets a ByteBuffer that all outgoing data gets copied to, and
+ * is read from in MTU_BYTES increments for the actual sendData call.
+ *
+ * *** THOUGHTS ***
+ *
+ * Need to have buffering at SessionManager to throttle data sent from Session
+ * to Transport to match data being sent from Transport
+ *
+ * Error recovery
+ *
+ * When an error happens on a Transport write we need to inform the SessionManager for resume
+ *
+ * What happens when the two devices fall out of sync. What happens when partial data is transferred.
+ * How to re-establish Session at new offset
+ */
 public class BLETransport extends Transport implements BLETransportCallback {
+
+    public static final int MTU_BYTES = 155;
 
     private final UUID serviceUUID;
     private final UUID dataUUID    = UUID.fromString("72A7700C-859D-4317-9E35-D7F5A93005B1");
+
+    /** Identifier -> (data, readIdx) */
+    private HashMap<String, ArrayDeque<ByteBuffer>> outBuffers = new HashMap<>();
+    private ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<>();
 
     private final BluetoothGattCharacteristic dataCharacteristic
             = new BluetoothGattCharacteristic(dataUUID,
@@ -84,24 +114,13 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
     @Override
     public boolean sendData(byte[] data, String identifier) {
-        boolean didSend = false;
-        if (central.isConnectedTo(identifier)) {
-            dataCharacteristic.setValue(data);
-            didSend = central.write(dataCharacteristic, identifier);
-        }
-        else if (peripheral.isConnectedTo(identifier)) {
-            dataCharacteristic.setValue(data);
-            didSend = peripheral.indicate(dataCharacteristic, identifier);
-        }
-        else {
-            Timber.e("SendData called but peer not connected. Need to buffer data");
-            // TODO : Queue data
-        }
 
-        if (didSend && callback.get() != null)
-            callback.get().dataSentToIdentifier(this, data, identifier);
+        queueOutgoingData(data, identifier);
 
-        return didSend;
+        if (isConnectedTo(identifier))
+            return transmitOutgoingDataForConnectedPeer(identifier);
+
+        return false;
     }
 
     @Override
@@ -145,7 +164,55 @@ public class BLETransport extends Transport implements BLETransportCallback {
         // Only the Central device should initiate device discovery
         if (deviceType == DeviceType.CENTRAL && callback.get() != null)
             callback.get().identifierUpdated(this, identifier, status, extraInfo);
+
+        transmitOutgoingDataForConnectedPeer(identifier);
     }
 
     // </editor-fold desc="BLETransportCallback">
+
+    /**
+     * Queue data for transmission to identifier
+     */
+    private void queueOutgoingData(byte[] data, String identifier) {
+        if (!outBuffers.containsKey(identifier)) {
+            outBuffers.put(identifier, new ArrayDeque<ByteBuffer>());
+        }
+
+        int readIdx = 0;
+        while (readIdx < data.length) {
+            ByteBuffer nextOutBuffer = availableBuffers.poll();
+            if (nextOutBuffer == null) nextOutBuffer = ByteBuffer.allocate(MTU_BYTES);
+            nextOutBuffer.put(data, readIdx, MTU_BYTES);
+            readIdx += MTU_BYTES;
+            outBuffers.get(identifier).add(nextOutBuffer);
+        }
+    }
+
+    private boolean transmitOutgoingDataForConnectedPeer(String identifier) {
+        if (!outBuffers.containsKey(identifier)) return false;
+
+        ByteBuffer toSend = outBuffers.get(identifier).poll();
+
+        boolean didSend = false;
+        if (central.isConnectedTo(identifier)) {
+            dataCharacteristic.setValue(toSend.array());
+            didSend = central.write(dataCharacteristic, identifier);
+        }
+        else if (peripheral.isConnectedTo(identifier)) {
+            dataCharacteristic.setValue(toSend.array());
+            didSend = peripheral.indicate(dataCharacteristic, identifier);
+        }
+
+        if (didSend) {
+            availableBuffers.add(toSend);
+
+            if (callback.get() != null)
+                callback.get().dataSentToIdentifier(this, toSend.array(), identifier);
+        }
+        return didSend;
+    }
+
+    private boolean isConnectedTo(String identifier) {
+        return central.isConnectedTo(identifier) || peripheral.isConnectedTo(identifier);
+    }
 }

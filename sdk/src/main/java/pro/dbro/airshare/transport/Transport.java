@@ -42,6 +42,10 @@ public abstract class Transport {
         this.callback = new WeakReference<>(callback);
     }
 
+    public void setTransportCallback(TransportCallback callback) {
+        this.callback = new WeakReference<>(callback);
+    }
+
     @Nullable
     public TransportCallback getCallback() {
         return callback.get();

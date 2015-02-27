@@ -6,7 +6,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.UUID;
 
+import pro.dbro.airshare.DataUtil;
 import timber.log.Timber;
 
 /**
@@ -19,27 +21,38 @@ import timber.log.Timber;
  */
 public abstract class SessionMessage {
 
-    /** int length header for maximum size of 16.777216 MB */
-    public static final int MAX_HEADER_LENGTH_BYTES = 3;
+    /** SessionMessage version. Must be representable by {@link #HEADER_VERSION_BYTES} bytes */
+    public static final int CURRENT_HEADER_VERSION = 1;
 
-    public static final String HEADER_VERSION= "version";
-    public static final String HEADER_TYPE   = "type";
-    public static final String HEADER_LENGTH = "length";
+    /** Leading byte specifies header format version */
+    public static final int HEADER_VERSION_BYTES   = 1;
 
+    /** Next bytes specify header size in bytes. Max header size: 16.777216 MB */
+    public static final int HEADER_LENGTH_BYTES    = 3;
+
+    /** Required header map keys */
+    public static final String HEADER_TYPE           = "type";
+    public static final String HEADER_PAYLOAD_LENGTH = "length";
+    public static final String HEADER_ID             = "id";
+
+    protected int    version;
     protected String type;
-    protected long   payloadLengthBytes;
+    protected int    payloadLengthBytes;
+    protected String id;
     private   byte[] cachedHeader;
 
     public SessionMessage() {
         type = getClass().getSimpleName();
         payloadLengthBytes = 0;
+        version = CURRENT_HEADER_VERSION;
+        id = UUID.randomUUID().toString().substring(28);
     }
 
     protected HashMap<String, Object> populateHeaders() {
         HashMap<String, Object> headerMap = new HashMap<>();
-        headerMap.put(HEADER_VERSION, 1);
-        headerMap.put(HEADER_TYPE, type);
-        headerMap.put(HEADER_LENGTH, payloadLengthBytes);
+        headerMap.put(HEADER_TYPE,    type);
+        headerMap.put(HEADER_PAYLOAD_LENGTH,  payloadLengthBytes);
+        headerMap.put(HEADER_ID,      id);
         return headerMap;
     }
 
@@ -57,17 +70,19 @@ public abstract class SessionMessage {
     public abstract byte[] getPayloadDataAtOffset(int offset, int length);
 
     /**
-     * Serialize this SessionMessage for transport.
+     * Serialize this SessionMessage for transport. Note that when the returned byte[]
+     * has length less than length, serialization is complete.
      *
      * The general format of the serialized bytstream:
      *
      * byte idx | description
      * ---------|------------
-     * [0-2]    | Header length
-     * [2-X]    | Header (json string)
+     * [0]      | SessionMessage version
+     * [1-3]    | Header length
+     * [3-X]    | Header (json string)
      * [X-Y]    | Payload
      *
-     * @param length should never be less than {@link #MAX_HEADER_LENGTH_BYTES}
+     * @param length should never be less than {@link #HEADER_LENGTH_BYTES} + {@link #HEADER_VERSION_BYTES}
      *
      */
     public byte[] serialize(int offset, int length) {
@@ -78,21 +93,35 @@ public abstract class SessionMessage {
 
         try {
             int idx = 0;
-            // Write SessionMessage header length if offset dictates
-            if (offset + idx < MAX_HEADER_LENGTH_BYTES) {
-                outputStream.write(
-                        ByteBuffer.allocate(MAX_HEADER_LENGTH_BYTES)
-                                  .putInt(cachedHeader.length)
-                                  .array());
+            // Write SessionMessage header version if offset dictates
+            if (offset + idx < HEADER_LENGTH_BYTES) {
+                outputStream.write((byte) CURRENT_HEADER_VERSION);
 
-                idx += MAX_HEADER_LENGTH_BYTES;
+                idx += HEADER_VERSION_BYTES;
+            }
+            // Write SessionMessage header length if offset dictates
+            if (offset + idx < HEADER_LENGTH_BYTES) {
+                ByteBuffer lengthBuffer = ByteBuffer.allocate(4)
+                                                    .putInt(cachedHeader.length);
+                lengthBuffer.rewind();
+                lengthBuffer.position(1);
+                byte[] truncatedLength = new byte[HEADER_LENGTH_BYTES];
+                // BigEndian -> truncate first bit
+                lengthBuffer.get(truncatedLength, 0, 3);
+                Timber.d(String.format("Serialized header length %d as %s",
+                        cachedHeader.length, DataUtil.bytesToHex(truncatedLength)));
+                outputStream.write(truncatedLength);
+
+                idx += HEADER_LENGTH_BYTES;
             }
             // Write SessionMessage HashMap header if offset dictates
-            if (offset + idx < cachedHeader.length) {
-                int headerBytesToCopy = Math.min(length, cachedHeader.length - (offset + idx));
+            if (offset + idx >= HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES &&
+                offset + idx < cachedHeader.length) {
+                int headerBytesToCopy = Math.min(length - idx,
+                                                 cachedHeader.length);
 
                 outputStream.write(cachedHeader,
-                                   offset + idx,
+                                   offset + idx - (HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES),
                                    headerBytesToCopy);
                 idx += headerBytesToCopy;
             }
@@ -108,13 +137,17 @@ public abstract class SessionMessage {
             Timber.e(e, "IOException while serializing SessionMessage");
         }
 
-        return outputStream.toByteArray();
+        byte[] result = outputStream.toByteArray();
+        Timber.d(String.format("Serialized SessionMessage in %d bytes", result.length));
+        return result;
     }
 
     /**
      * Serialize the entire message in one go. Must only be used for messages less than 2 MB.
      */
     public byte[] serialize() {
+        seralizeAndCacheHeaders();
+
         if (getTotalLengthBytes() > Integer.MAX_VALUE)
             Timber.e("Message too long for serialize! Will be truncated");
 
@@ -125,7 +158,8 @@ public abstract class SessionMessage {
      * @return the length of the total SessionMessage in bytes
      */
     private long getTotalLengthBytes() {
-        return MAX_HEADER_LENGTH_BYTES + getDataLengthBytes();
+
+        return HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES + cachedHeader.length + getDataLengthBytes();
     }
 
     private void seralizeAndCacheHeaders() {
