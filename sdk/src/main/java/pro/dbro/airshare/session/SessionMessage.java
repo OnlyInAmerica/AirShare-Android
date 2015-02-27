@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.UUID;
 
 import pro.dbro.airshare.DataUtil;
@@ -39,15 +40,29 @@ public abstract class SessionMessage {
     protected String type;
     protected int    payloadLengthBytes;
     protected String id;
-    private   byte[] cachedHeader;
+    private   HashMap<String, Object> headers;
+    private   byte[] serializedHeader;
 
-    public SessionMessage() {
+    public SessionMessage(String id) {
         type = getClass().getSimpleName();
         payloadLengthBytes = 0;
         version = CURRENT_HEADER_VERSION;
-        id = UUID.randomUUID().toString().substring(28);
+        this.id = id;
+
+        // Child classes must call {@link seralizeAndCacheHeaders}
+        // in their constructors
     }
 
+    public SessionMessage() {
+        this(UUID.randomUUID().toString().substring(28));
+    }
+
+
+    /**
+     * @return a HashMap representation of the message headers.
+     * This method will be called on construction, and so it should not
+     * rely on state set afterword.
+     */
     protected HashMap<String, Object> populateHeaders() {
         HashMap<String, Object> headerMap = new HashMap<>();
         headerMap.put(HEADER_TYPE,    type);
@@ -58,6 +73,10 @@ public abstract class SessionMessage {
 
     public String getType() {
         return type;
+    }
+
+    public HashMap<String, Object> getHeaders() {
+        return headers;
     }
 
     /**
@@ -87,8 +106,6 @@ public abstract class SessionMessage {
      */
     public byte[] serialize(int offset, int length) {
 
-        seralizeAndCacheHeaders();
-
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         try {
@@ -102,25 +119,25 @@ public abstract class SessionMessage {
             // Write SessionMessage header length if offset dictates
             if (offset + idx < HEADER_LENGTH_BYTES) {
                 ByteBuffer lengthBuffer = ByteBuffer.allocate(4)
-                                                    .putInt(cachedHeader.length);
+                                                    .putInt(serializedHeader.length);
                 lengthBuffer.rewind();
                 lengthBuffer.position(1);
                 byte[] truncatedLength = new byte[HEADER_LENGTH_BYTES];
                 // BigEndian -> truncate first bit
                 lengthBuffer.get(truncatedLength, 0, 3);
                 Timber.d(String.format("Serialized header length %d as %s",
-                        cachedHeader.length, DataUtil.bytesToHex(truncatedLength)));
+                        serializedHeader.length, DataUtil.bytesToHex(truncatedLength)));
                 outputStream.write(truncatedLength);
 
                 idx += HEADER_LENGTH_BYTES;
             }
             // Write SessionMessage HashMap header if offset dictates
             if (offset + idx >= HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES &&
-                offset + idx < cachedHeader.length) {
+                offset + idx < serializedHeader.length) {
                 int headerBytesToCopy = Math.min(length - idx,
-                                                 cachedHeader.length);
+                                                 serializedHeader.length);
 
-                outputStream.write(cachedHeader,
+                outputStream.write(serializedHeader,
                                    offset + idx - (HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES),
                                    headerBytesToCopy);
                 idx += headerBytesToCopy;
@@ -128,7 +145,7 @@ public abstract class SessionMessage {
 
             // Write raw payload if offset dictates
             if (idx < length) {
-                int payloadOffset = offset - cachedHeader.length;
+                int payloadOffset = offset - serializedHeader.length;
                     outputStream.write(getPayloadDataAtOffset(payloadOffset, length - idx));
 
             }
@@ -146,8 +163,6 @@ public abstract class SessionMessage {
      * Serialize the entire message in one go. Must only be used for messages less than 2 MB.
      */
     public byte[] serialize() {
-        seralizeAndCacheHeaders();
-
         if (getTotalLengthBytes() > Integer.MAX_VALUE)
             Timber.e("Message too long for serialize! Will be truncated");
 
@@ -159,15 +174,43 @@ public abstract class SessionMessage {
      */
     private long getTotalLengthBytes() {
 
-        return HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES + cachedHeader.length + getDataLengthBytes();
+        return HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES + serializedHeader.length + getDataLengthBytes();
     }
 
-    private void seralizeAndCacheHeaders() {
+    protected void seralizeAndCacheHeaders() {
         // Cache serialized version of header HashMap if necessary
-        if (cachedHeader == null) {
-            HashMap<String, Object> headers = populateHeaders();
-            cachedHeader = new JSONObject(headers).toString().getBytes();
+        if (serializedHeader == null) {
+            headers = populateHeaders();
+            serializedHeader = new JSONObject(headers).toString().getBytes();
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(headers.get(HEADER_TYPE),
+                            headers.get(HEADER_PAYLOAD_LENGTH),
+                            headers.get(HEADER_ID));
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+
+        if(obj == this) return true;
+        if(obj == null) return false;
+
+        if (getClass ().equals (obj.getClass ()))
+        {
+            final SessionMessage other = (SessionMessage) obj;
+
+            return Objects.equals(getHeaders().get(HEADER_TYPE),
+                                  other.getHeaders().get(HEADER_TYPE)) &&
+                   Objects.equals(getHeaders().get(HEADER_PAYLOAD_LENGTH),
+                                  other.getHeaders().get(HEADER_PAYLOAD_LENGTH)) &&
+                   Objects.equals(getHeaders().get(HEADER_ID),
+                                  other.getHeaders().get(HEADER_ID));
+        }
+
+        return false;
     }
 
 }

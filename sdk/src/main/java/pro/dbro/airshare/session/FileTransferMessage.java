@@ -62,6 +62,7 @@ public class FileTransferMessage extends SessionMessage {
         this.filename = filename;
         payloadLengthBytes = length;
         this.inputStream = inputStream;
+        seralizeAndCacheHeaders();
     }
 
     /**

@@ -25,12 +25,19 @@ public class IdentityMessage extends SessionMessage {
                              (String) headers.get("alias"),
                              new Date(),
                              -1);
-        return new IdentityMessage(peer);
+        return new IdentityMessage((String) headers.get(SessionMessage.HEADER_ID), peer);
+    }
+
+    public IdentityMessage(String id, Peer localPeer) {
+        super(id);
+        this.localPeer = localPeer;
+        seralizeAndCacheHeaders();
     }
 
     public IdentityMessage(Peer localPeer) {
         super();
         this.localPeer = localPeer;
+        seralizeAndCacheHeaders();
     }
 
     public Peer getPeer() {

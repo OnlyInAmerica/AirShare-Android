@@ -82,10 +82,7 @@ public class SessionTest extends ApplicationTestCase<Application> {
 
                     IdentityMessage deserializedIdentity = (IdentityMessage) message;
 
-                    assertEquals(originalIdentity.getPeer().getAlias(),
-                                 deserializedIdentity.getPeer().getAlias());
-                    assertEquals(DataUtil.bytesToHex(originalIdentity.getPeer().getPublicKey()),
-                                 DataUtil.bytesToHex(deserializedIdentity.getPeer().getPublicKey()));
+                    assertEquals(originalIdentity, deserializedIdentity);
 
                 }
             });
