@@ -109,9 +109,9 @@ public abstract class SessionMessage {
      * byte idx | description
      * ---------|------------
      * [0]      | SessionMessage version
-     * [1-3]    | Header length
-     * [3-X]    | Header (json string)
-     * [X-Y]    | Body
+     * [1-4]    | Header length
+     * [4-X]    | Header JSON. 'X' is value specified by Header length
+     * [X-Y]    | Body. 'Y' is value specified in 'body-length' entry of Header JSON.
      *
      * @param length should never be less than {@link #HEADER_LENGTH_BYTES} + {@link #HEADER_VERSION_BYTES}
      *
