@@ -138,7 +138,7 @@ public abstract class SessionMessage {
                 ByteBuffer lengthBuffer = ByteBuffer.allocate(Integer.SIZE / 8)
                                                     .order(ByteOrder.LITTLE_ENDIAN)
                                                     .putInt(serializedHeader.length);
-                lengthBuffer.rewind();
+
                 outputStream.write(lengthBuffer.array());
 
                 bytesWritten += HEADER_LENGTH_BYTES;
@@ -165,9 +165,9 @@ public abstract class SessionMessage {
                     return null;
 
                 int bodyOffset = Math.max(0,
-                        offset - (HEADER_LENGTH_BYTES +
-                                HEADER_VERSION_BYTES +
-                                serializedHeader.length)
+                                          offset - (HEADER_LENGTH_BYTES +
+                                                    HEADER_VERSION_BYTES +
+                                                    serializedHeader.length)
                 );
 
                 byte[] body = getBodyAtOffset(bodyOffset, length - bytesWritten);
