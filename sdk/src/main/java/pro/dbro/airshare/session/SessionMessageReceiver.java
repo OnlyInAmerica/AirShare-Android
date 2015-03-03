@@ -84,13 +84,13 @@ public class SessionMessageReceiver {
      * e.g: the source of incoming data becomes unavailable.
      */
     public void reset() {
-        gotVersion         = false;
-        gotHeaderLength    = false;
-        gotHeader          = false;
-        gotBody = false;
+        gotVersion      = false;
+        gotHeaderLength = false;
+        gotHeader       = false;
+        gotBody         = false;
         gotBodyBoundary = false;
 
-        headerLength         = 0;
+        headerLength      = 0;
         bodyLength        = 0;
         bodyBytesReceived = 0;
 
@@ -169,10 +169,6 @@ public class SessionMessageReceiver {
             headerLengthBuffer.rewind();
 
             headerLength = headerLengthBuffer.getInt();
-//            for (int x = 0; x < headerLengthBytes.length; x++) {
-//                headerLengthBytes[x] = buffer.get(dataBytesProcessed + x);
-//            }
-//            headerLength = new BigInteger(headerLengthBytes).intValue();
             Timber.d("Deserialized header length " + headerLength);
             gotHeaderLength = true;
             dataBytesProcessed += 3;
