@@ -94,7 +94,7 @@ public class SessionMessageReceiver {
         bodyLength        = 0;
         bodyBytesReceived = 0;
 
-        buffer.position(0);
+        buffer.clear();
         init();
     }
 
