@@ -34,7 +34,7 @@ public abstract class SessionMessage {
 
     /** Required header map keys */
     public static final String HEADER_TYPE         = "type";
-    public static final String HEADER_BODY_LENGTH  = "length";
+    public static final String HEADER_BODY_LENGTH  = "body-length";
     public static final String HEADER_ID           = "id";
 
     protected int    version;
