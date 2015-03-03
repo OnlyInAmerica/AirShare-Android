@@ -1,5 +1,7 @@
 package pro.dbro.airshare.session;
 
+import android.support.annotation.Nullable;
+
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -43,6 +45,11 @@ public abstract class SessionMessage {
     private   HashMap<String, Object> headers;
     private   byte[] serializedHeader;
 
+    /**
+     * Construct a SessionMessage with a given id.
+     * This constructor should be used for deserialization of
+     * incoming SessionMessages.
+     */
     public SessionMessage(String id) {
         type = getClass().getSimpleName();
         payloadLengthBytes = 0;
@@ -53,6 +60,10 @@ public abstract class SessionMessage {
         // in their constructors
     }
 
+    /**
+     * Construct a new SessionMessage with a unique identifier.
+     * This constructor should be used for creating new outgoing SessionMessages
+     */
     public SessionMessage() {
         this(UUID.randomUUID().toString().substring(28));
     }
@@ -82,15 +93,16 @@ public abstract class SessionMessage {
     /**
      * @return the length of the blob payload in bytes
      */
-    public long getDataLengthBytes() {
+    public long getPayloadLengthBytes() {
         return payloadLengthBytes;
     }
 
-    public abstract byte[] getPayloadDataAtOffset(int offset, int length);
+    public abstract @Nullable byte[] getPayloadDataAtOffset(int offset, int length);
 
     /**
      * Serialize this SessionMessage for transport. Note that when the returned byte[]
-     * has length less than length, serialization is complete.
+     * has length less than given length or is null (data ended precisely on the last call),
+     * serialization is complete.
      *
      * The general format of the serialized bytstream:
      *
@@ -104,20 +116,21 @@ public abstract class SessionMessage {
      * @param length should never be less than {@link #HEADER_LENGTH_BYTES} + {@link #HEADER_VERSION_BYTES}
      *
      */
-    public byte[] serialize(int offset, int length) {
+    public @Nullable byte[] serialize(int offset, int length) {
+        if (offset < 0) throw new IllegalArgumentException("offset may not be negative");
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         try {
-            int idx = 0;
+            int bytesWritten = 0;
             // Write SessionMessage header version if offset dictates
-            if (offset + idx < HEADER_LENGTH_BYTES) {
+            if (offset + bytesWritten < HEADER_LENGTH_BYTES) {
                 outputStream.write((byte) CURRENT_HEADER_VERSION);
 
-                idx += HEADER_VERSION_BYTES;
+                bytesWritten += HEADER_VERSION_BYTES;
             }
             // Write SessionMessage header length if offset dictates
-            if (offset + idx < HEADER_LENGTH_BYTES) {
+            if (offset + bytesWritten < HEADER_LENGTH_BYTES) {
                 ByteBuffer lengthBuffer = ByteBuffer.allocate(4)
                                                     .putInt(serializedHeader.length);
                 lengthBuffer.rewind();
@@ -125,29 +138,40 @@ public abstract class SessionMessage {
                 byte[] truncatedLength = new byte[HEADER_LENGTH_BYTES];
                 // BigEndian -> truncate first bit
                 lengthBuffer.get(truncatedLength, 0, 3);
-                Timber.d(String.format("Serialized header length %d as %s",
-                        serializedHeader.length, DataUtil.bytesToHex(truncatedLength)));
+//                Timber.d(String.format("Serialized header length %d as %s",
+//                        serializedHeader.length, DataUtil.bytesToHex(truncatedLength)));
                 outputStream.write(truncatedLength);
 
-                idx += HEADER_LENGTH_BYTES;
+                bytesWritten += HEADER_LENGTH_BYTES;
             }
             // Write SessionMessage HashMap header if offset dictates
-            if (offset + idx >= HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES &&
-                offset + idx < serializedHeader.length) {
-                int headerBytesToCopy = Math.min(length - idx,
+            if (offset + bytesWritten >= HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES &&
+                offset + bytesWritten < serializedHeader.length) {
+                int headerBytesToCopy = Math.min(length - bytesWritten,
                                                  serializedHeader.length);
 
                 outputStream.write(serializedHeader,
-                                   offset + idx - (HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES),
+                                   offset + bytesWritten - (HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES),
                                    headerBytesToCopy);
-                idx += headerBytesToCopy;
+                bytesWritten += headerBytesToCopy;
             }
 
             // Write raw payload if offset dictates
-            if (idx < length) {
-                int payloadOffset = offset - serializedHeader.length;
-                    outputStream.write(getPayloadDataAtOffset(payloadOffset, length - idx));
+            if (bytesWritten < length) {
+                // If no non-payload data was written and there is no payload, return null
+                if (getPayloadLengthBytes() == 0 && bytesWritten == 0)
+                    return null;
 
+                int payloadOffset = Math.max(0,
+                                             offset - (HEADER_LENGTH_BYTES +
+                                                       HEADER_VERSION_BYTES +
+                                                       serializedHeader.length)
+                                             );
+
+                byte[] payload = getPayloadDataAtOffset(payloadOffset, length - bytesWritten);
+
+                if (payload != null)
+                    outputStream.write(payload);
             }
 
         } catch (IOException e) {
@@ -155,8 +179,9 @@ public abstract class SessionMessage {
         }
 
         byte[] result = outputStream.toByteArray();
-        Timber.d(String.format("Serialized SessionMessage in %d bytes", result.length));
-        return result;
+        //Timber.d(String.format("Serialized %d SessionMessage bytes", result.length));
+        // Do not return zero length byte[]. Use null to represent no more data
+        return result.length == 0 ? null : result;
     }
 
     /**
@@ -172,9 +197,12 @@ public abstract class SessionMessage {
     /**
      * @return the length of the total SessionMessage in bytes
      */
-    private long getTotalLengthBytes() {
+    public long getTotalLengthBytes() {
 
-        return HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES + serializedHeader.length + getDataLengthBytes();
+        return HEADER_VERSION_BYTES +
+               HEADER_LENGTH_BYTES +
+               serializedHeader.length +
+               getPayloadLengthBytes();
     }
 
     protected void seralizeAndCacheHeaders() {
