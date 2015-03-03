@@ -13,7 +13,7 @@ public class DataTransferMessage extends SessionMessage {
     public DataTransferMessage(byte[] data) {
         super();
         this.data = ByteBuffer.wrap(data);
-        payloadLengthBytes = data.length;
+        bodyLengthBytes = data.length;
         seralizeAndCacheHeaders();
     }
 
@@ -28,7 +28,7 @@ public class DataTransferMessage extends SessionMessage {
     }
 
     @Override
-    public byte[] getPayloadDataAtOffset(int offset, int length) {
+    public byte[] getBodyAtOffset(int offset, int length) {
 
         byte[] result = new byte[length];
 

@@ -33,7 +33,7 @@ import timber.log.Timber;
  *
  * {@link Type#TRANSFER} is the sender's actual transfer message in response to the receiver's
  * accept message. This message consists of both a header which describes the asset's filename and
- * length as well as the corresponding asset payload. This type is indicated by
+ * length as well as the corresponding asset body. This type is indicated by
  * the SessionMessage {@link SessionMessage#HEADER_TYPE} header having value
  * {@link #HEADER_TYPE_TRANSFER}.
  *
@@ -43,8 +43,8 @@ public class FileTransferMessage extends SessionMessage {
 
     public static enum Type { OFFER, ACCEPT, TRANSFER }
 
-    /** Describe the size of the offered payload. This differs from
-     * {@link SessionMessage#HEADER_PAYLOAD_LENGTH} because the payload is not actually
+    /** Describe the size of the offered body. This differs from
+     * {@link SessionMessage#HEADER_BODY_LENGTH} because the body is not actually
      * included in the offer message.
      */
     public static final String HEADER_OFFER_LENGTH = "filetransfer-offer-length";
@@ -59,13 +59,13 @@ public class FileTransferMessage extends SessionMessage {
     private @NonNull  Type type;
     private @NonNull  String filename;
 
-    private int payloadBytesRead;
+    private int bodyBytesRead;
 
     /**
      * Convenience creator for deserialization
      */
-    public static FileTransferMessage fromHeadersAndPayload(HashMap<String, Object> headers,
-                                                            InputStream payload) {
+    public static FileTransferMessage fromHeadersAndBody(HashMap<String, Object> headers,
+                                                         InputStream body) {
 
         String typeStr = (String) headers.get(SessionMessage.HEADER_TYPE);
         Type type = null;
@@ -84,14 +84,14 @@ public class FileTransferMessage extends SessionMessage {
 
             default:
                 throw new IllegalArgumentException(String.format("Unknown type '%s. " +
-                        "Is FileTransferMessage#fromHeadersAndPayload up to date with the allowed " +
+                        "Is FileTransferMessage#fromHeadersAndBody up to date with the allowed " +
                         "values of FileTransferMessage#Type?", typeStr));
         }
 
         return new FileTransferMessage((String) headers.get(SessionMessage.HEADER_ID),
-                                       payload,
+                                       body,
                                        (String) headers.get("filename"),
-                                       (int) headers.get(SessionMessage.HEADER_PAYLOAD_LENGTH),
+                                       (int) headers.get(SessionMessage.HEADER_BODY_LENGTH),
                                        type);
     }
 
@@ -109,7 +109,7 @@ public class FileTransferMessage extends SessionMessage {
         super();
         this.type = type;
         this.filename = filename;
-        payloadLengthBytes = length;
+        bodyLengthBytes = length;
         this.inputStream = new BufferedInputStream(inputStream);
 
         init();
@@ -130,7 +130,7 @@ public class FileTransferMessage extends SessionMessage {
         super(id);
         this.type = type;
         this.filename = filename;
-        payloadLengthBytes = length;
+        bodyLengthBytes = length;
         this.inputStream = new BufferedInputStream(inputStream);
 
         init();
@@ -146,7 +146,7 @@ public class FileTransferMessage extends SessionMessage {
         this.file = file;
         this.filename = file.getName();
         this.type = type;
-        payloadLengthBytes = (int) file.length();
+        bodyLengthBytes = (int) file.length();
 
         inputStream = new BufferedInputStream(new FileInputStream(file));
 
@@ -154,8 +154,8 @@ public class FileTransferMessage extends SessionMessage {
     }
 
     private void init() {
-        this.inputStream.mark(payloadLengthBytes);
-        payloadBytesRead = 0;
+        this.inputStream.mark(bodyLengthBytes);
+        bodyBytesRead = 0;
 
         seralizeAndCacheHeaders();
     }
@@ -185,11 +185,11 @@ public class FileTransferMessage extends SessionMessage {
         headerMap.put("type",     typeHeader);
         headerMap.put("filename", filename);
 
-        // If this is an Offer or Accept message, the payload is not included so
+        // If this is an Offer or Accept message, the body is not included so
         // it's length should be exclusively reported in a special FileTransferMessage header
         if (type != Type.TRANSFER) {
-            headerMap.put(SessionMessage.HEADER_PAYLOAD_LENGTH, 0);
-            headerMap.put(HEADER_OFFER_LENGTH, payloadLengthBytes);
+            headerMap.put(SessionMessage.HEADER_BODY_LENGTH, 0);
+            headerMap.put(HEADER_OFFER_LENGTH, bodyLengthBytes);
         }
 
 //        headerMap.put("resumeoffset", 439439);
@@ -198,31 +198,31 @@ public class FileTransferMessage extends SessionMessage {
     }
 
     @Override
-    public long getPayloadLengthBytes() {
-        // Only the TRANSFER message actually includes the payload
-        // OFFER and ACCEPT use payloadLengthBytes to populate the HEADER_OFFER_LENGTH header
-        return type == Type.TRANSFER ? payloadLengthBytes : 0;
+    public long getBodyLengthBytes() {
+        // Only the TRANSFER message actually includes the body
+        // OFFER and ACCEPT use bodyLengthBytes to populate the HEADER_OFFER_LENGTH header
+        return type == Type.TRANSFER ? bodyLengthBytes : 0;
     }
 
     @Override
-    public @Nullable byte[] getPayloadDataAtOffset(int offset, int length) {
+    public @Nullable byte[] getBodyAtOffset(int offset, int length) {
         // NOTE : This method is written to be generic to a BufferedInputStream
         // for potential re-use as part of an abstract InputStreamMessage etc.
 
-        if (offset > payloadLengthBytes - 1) return null;
+        if (offset > bodyLengthBytes - 1) return null;
 
         try {
-            if (offset != payloadBytesRead) {
-                Timber.w("FileTransferMessage skip requested. Offset is %d but bytes read is %d", offset, payloadBytesRead);
+            if (offset != bodyBytesRead) {
+                Timber.w("FileTransferMessage skip requested. Offset is %d but bytes read is %d", offset, bodyBytesRead);
                 if (!inputStream.markSupported())
                     throw new UnsupportedOperationException("InputStream does not support non-sequential reading");
 
                 long bytesSkippedActual = 0;
                 long bytesSkippedRequested = 0;
-                if (offset > payloadBytesRead) {
-                    bytesSkippedRequested = offset - payloadBytesRead;
+                if (offset > bodyBytesRead) {
+                    bytesSkippedRequested = offset - bodyBytesRead;
 
-                } else if (offset < payloadBytesRead) {
+                } else if (offset < bodyBytesRead) {
                     bytesSkippedRequested = offset;
                     inputStream.reset();
                 }
@@ -233,13 +233,13 @@ public class FileTransferMessage extends SessionMessage {
                     throw new UnsupportedOperationException("Unable to skip by requested interval");
             }
 
-            int bytesToRead = Math.min(length, payloadLengthBytes - offset);
+            int bytesToRead = Math.min(length, bodyLengthBytes - offset);
             byte[] result = new byte[bytesToRead];
             int bytesRead = inputStream.read(result, 0, bytesToRead);
-            payloadBytesRead += bytesRead;
+            bodyBytesRead += bytesRead;
 
             if (bytesRead < length)
-                Timber.d("getPayloadDataAtOffset read end of file");
+                Timber.d("getBodyAtOffset read end of file");
 
             return result;
 

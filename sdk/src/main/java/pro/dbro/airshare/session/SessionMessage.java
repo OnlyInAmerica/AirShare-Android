@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.Objects;
 import java.util.UUID;
 
-import pro.dbro.airshare.DataUtil;
 import timber.log.Timber;
 
 /**
@@ -34,13 +33,13 @@ public abstract class SessionMessage {
     public static final int HEADER_LENGTH_BYTES    = 3;
 
     /** Required header map keys */
-    public static final String HEADER_TYPE           = "type";
-    public static final String HEADER_PAYLOAD_LENGTH = "length";
-    public static final String HEADER_ID             = "id";
+    public static final String HEADER_TYPE         = "type";
+    public static final String HEADER_BODY_LENGTH  = "length";
+    public static final String HEADER_ID           = "id";
 
     protected int    version;
     protected String type;
-    protected int    payloadLengthBytes;
+    protected int    bodyLengthBytes;
     protected String id;
     private   HashMap<String, Object> headers;
     private   byte[] serializedHeader;
@@ -52,7 +51,7 @@ public abstract class SessionMessage {
      */
     public SessionMessage(String id) {
         type = getClass().getSimpleName();
-        payloadLengthBytes = 0;
+        bodyLengthBytes = 0;
         version = CURRENT_HEADER_VERSION;
         this.id = id;
 
@@ -77,7 +76,7 @@ public abstract class SessionMessage {
     protected HashMap<String, Object> populateHeaders() {
         HashMap<String, Object> headerMap = new HashMap<>();
         headerMap.put(HEADER_TYPE,    type);
-        headerMap.put(HEADER_PAYLOAD_LENGTH,  payloadLengthBytes);
+        headerMap.put(HEADER_BODY_LENGTH, bodyLengthBytes);
         headerMap.put(HEADER_ID,      id);
         return headerMap;
     }
@@ -91,13 +90,13 @@ public abstract class SessionMessage {
     }
 
     /**
-     * @return the length of the blob payload in bytes
+     * @return the length of the blob body in bytes
      */
-    public long getPayloadLengthBytes() {
-        return payloadLengthBytes;
+    public long getBodyLengthBytes() {
+        return bodyLengthBytes;
     }
 
-    public abstract @Nullable byte[] getPayloadDataAtOffset(int offset, int length);
+    public abstract @Nullable byte[] getBodyAtOffset(int offset, int length);
 
     /**
      * Serialize this SessionMessage for transport. Note that when the returned byte[]
@@ -111,7 +110,7 @@ public abstract class SessionMessage {
      * [0]      | SessionMessage version
      * [1-3]    | Header length
      * [3-X]    | Header (json string)
-     * [X-Y]    | Payload
+     * [X-Y]    | Body
      *
      * @param length should never be less than {@link #HEADER_LENGTH_BYTES} + {@link #HEADER_VERSION_BYTES}
      *
@@ -156,22 +155,22 @@ public abstract class SessionMessage {
                 bytesWritten += headerBytesToCopy;
             }
 
-            // Write raw payload if offset dictates
+            // Write raw body if offset dictates
             if (bytesWritten < length) {
-                // If no non-payload data was written and there is no payload, return null
-                if (getPayloadLengthBytes() == 0 && bytesWritten == 0)
+                // If no non-body data was written and there is no body, return null
+                if (getBodyLengthBytes() == 0 && bytesWritten == 0)
                     return null;
 
-                int payloadOffset = Math.max(0,
-                                             offset - (HEADER_LENGTH_BYTES +
-                                                       HEADER_VERSION_BYTES +
-                                                       serializedHeader.length)
-                                             );
+                int bodyOffset = Math.max(0,
+                        offset - (HEADER_LENGTH_BYTES +
+                                HEADER_VERSION_BYTES +
+                                serializedHeader.length)
+                );
 
-                byte[] payload = getPayloadDataAtOffset(payloadOffset, length - bytesWritten);
+                byte[] body = getBodyAtOffset(bodyOffset, length - bytesWritten);
 
-                if (payload != null)
-                    outputStream.write(payload);
+                if (body != null)
+                    outputStream.write(body);
             }
 
         } catch (IOException e) {
@@ -202,7 +201,7 @@ public abstract class SessionMessage {
         return HEADER_VERSION_BYTES +
                HEADER_LENGTH_BYTES +
                serializedHeader.length +
-               getPayloadLengthBytes();
+               getBodyLengthBytes();
     }
 
     protected void seralizeAndCacheHeaders() {
@@ -216,7 +215,7 @@ public abstract class SessionMessage {
     @Override
     public int hashCode() {
         return Objects.hash(headers.get(HEADER_TYPE),
-                            headers.get(HEADER_PAYLOAD_LENGTH),
+                            headers.get(HEADER_BODY_LENGTH),
                             headers.get(HEADER_ID));
     }
 
@@ -232,8 +231,8 @@ public abstract class SessionMessage {
 
             return Objects.equals(getHeaders().get(HEADER_TYPE),
                                   other.getHeaders().get(HEADER_TYPE)) &&
-                   Objects.equals(getHeaders().get(HEADER_PAYLOAD_LENGTH),
-                                  other.getHeaders().get(HEADER_PAYLOAD_LENGTH)) &&
+                   Objects.equals(getHeaders().get(HEADER_BODY_LENGTH),
+                                  other.getHeaders().get(HEADER_BODY_LENGTH)) &&
                    Objects.equals(getHeaders().get(HEADER_ID),
                                   other.getHeaders().get(HEADER_ID));
         }

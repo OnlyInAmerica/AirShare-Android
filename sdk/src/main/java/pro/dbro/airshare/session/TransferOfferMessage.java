@@ -32,7 +32,7 @@ public class TransferOfferMessage extends SessionMessage {
     }
 
     @Override
-    public byte[] getPayloadDataAtOffset(int offset, int length) {
+    public byte[] getBodyAtOffset(int offset, int length) {
         return new byte[0];
     }
 
