@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -54,8 +55,8 @@ public class SessionMessageReceiver {
     private SessionMessageReceiverCallback callback;
     private File bodyFile;
     private FileOutputStream bodyStream;
-
     private HashMap<String, Object> headers;
+    private ByteBuffer headerLengthBuffer;
 
     private boolean gotVersion;
     private boolean gotHeaderLength;
@@ -157,7 +158,21 @@ public class SessionMessageReceiver {
 
             // Get header length and store. Deserialize header when possible
             // TODO If header is above some size, copy to FileOutputStream
-            headerLength = new BigInteger(new byte[] { buffer.get(1), buffer.get(2), buffer.get(3) }).intValue();
+            byte[] headerLengthBytes = new byte[SessionMessage.HEADER_LENGTH_BYTES];
+            int originalPosition = buffer.position();
+            buffer.position(dataBytesProcessed);
+            buffer.get(headerLengthBytes, 0, headerLengthBytes.length);
+            buffer.position(originalPosition);
+
+            headerLengthBuffer.clear();
+            headerLengthBuffer.put(headerLengthBytes);
+            headerLengthBuffer.rewind();
+
+            headerLength = headerLengthBuffer.getInt();
+//            for (int x = 0; x < headerLengthBytes.length; x++) {
+//                headerLengthBytes[x] = buffer.get(dataBytesProcessed + x);
+//            }
+//            headerLength = new BigInteger(headerLengthBytes).intValue();
             Timber.d("Deserialized header length " + headerLength);
             gotHeaderLength = true;
             dataBytesProcessed += 3;
@@ -270,6 +285,8 @@ public class SessionMessageReceiver {
             Timber.e(e, msg);
             throw new IllegalArgumentException(msg);
         }
+
+        headerLengthBuffer = ByteBuffer.allocate(Integer.SIZE / 8).order(ByteOrder.LITTLE_ENDIAN);
     }
 
     private void resizeBuffer(int minLength) {

@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.UUID;
@@ -29,8 +30,8 @@ public abstract class SessionMessage {
     /** Leading byte specifies header format version */
     public static final int HEADER_VERSION_BYTES   = 1;
 
-    /** Next bytes specify header size in bytes. Max header size: 16.777216 MB */
-    public static final int HEADER_LENGTH_BYTES    = 3;
+    /** Next bytes specify header size in bytes. uint32. Max header size: 4 GB */
+    public static final int HEADER_LENGTH_BYTES    = 4;
 
     /** Required header map keys */
     public static final String HEADER_TYPE         = "type";
@@ -130,16 +131,15 @@ public abstract class SessionMessage {
             }
             // Write SessionMessage header length if offset dictates
             if (offset + bytesWritten < HEADER_LENGTH_BYTES) {
-                ByteBuffer lengthBuffer = ByteBuffer.allocate(4)
+
+                ByteBuffer lengthBuffer = ByteBuffer.allocate(Integer.SIZE / 8)
+                                                    .order(ByteOrder.LITTLE_ENDIAN)
                                                     .putInt(serializedHeader.length);
                 lengthBuffer.rewind();
                 lengthBuffer.position(1);
-                byte[] truncatedLength = new byte[HEADER_LENGTH_BYTES];
-                // BigEndian -> truncate first bit
-                lengthBuffer.get(truncatedLength, 0, 3);
 //                Timber.d(String.format("Serialized header length %d as %s",
 //                        serializedHeader.length, DataUtil.bytesToHex(truncatedLength)));
-                outputStream.write(truncatedLength);
+                outputStream.write(lengthBuffer.array());
 
                 bytesWritten += HEADER_LENGTH_BYTES;
             }
