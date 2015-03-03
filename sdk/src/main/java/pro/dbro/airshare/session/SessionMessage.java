@@ -123,12 +123,15 @@ public abstract class SessionMessage {
 
         try {
             int bytesWritten = 0;
+
             // Write SessionMessage header version if offset dictates
             if (offset + bytesWritten < HEADER_LENGTH_BYTES) {
+                
                 outputStream.write((byte) CURRENT_HEADER_VERSION);
 
                 bytesWritten += HEADER_VERSION_BYTES;
             }
+
             // Write SessionMessage header length if offset dictates
             if (offset + bytesWritten < HEADER_LENGTH_BYTES) {
 
@@ -137,21 +140,22 @@ public abstract class SessionMessage {
                                                     .putInt(serializedHeader.length);
                 lengthBuffer.rewind();
                 lengthBuffer.position(1);
-//                Timber.d(String.format("Serialized header length %d as %s",
-//                        serializedHeader.length, DataUtil.bytesToHex(truncatedLength)));
                 outputStream.write(lengthBuffer.array());
 
                 bytesWritten += HEADER_LENGTH_BYTES;
             }
+
             // Write SessionMessage HashMap header if offset dictates
             if (offset + bytesWritten >= HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES &&
                 offset + bytesWritten < serializedHeader.length) {
+
                 int headerBytesToCopy = Math.min(length - bytesWritten,
                                                  serializedHeader.length);
 
                 outputStream.write(serializedHeader,
                                    offset + bytesWritten - (HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES),
                                    headerBytesToCopy);
+
                 bytesWritten += headerBytesToCopy;
             }
 
