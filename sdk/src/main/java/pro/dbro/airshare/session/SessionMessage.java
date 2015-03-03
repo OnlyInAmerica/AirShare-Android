@@ -126,7 +126,7 @@ public abstract class SessionMessage {
 
             // Write SessionMessage header version if offset dictates
             if (offset + bytesWritten < HEADER_LENGTH_BYTES) {
-                
+
                 outputStream.write((byte) CURRENT_HEADER_VERSION);
 
                 bytesWritten += HEADER_VERSION_BYTES;
@@ -139,7 +139,6 @@ public abstract class SessionMessage {
                                                     .order(ByteOrder.LITTLE_ENDIAN)
                                                     .putInt(serializedHeader.length);
                 lengthBuffer.rewind();
-                lengthBuffer.position(1);
                 outputStream.write(lengthBuffer.array());
 
                 bytesWritten += HEADER_LENGTH_BYTES;
