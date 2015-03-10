@@ -157,7 +157,7 @@ public class FileTransferMessage extends SessionMessage {
         this.inputStream.mark(bodyLengthBytes);
         bodyBytesRead = 0;
 
-        seralizeAndCacheHeaders();
+        serializeAndCacheHeaders();
     }
 
     @Override

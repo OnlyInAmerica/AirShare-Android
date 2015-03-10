@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import pro.dbro.airshare.DataUtil;
-import pro.dbro.airshare.LocalPeer;
 import pro.dbro.airshare.Peer;
 
 /**
@@ -31,13 +30,13 @@ public class IdentityMessage extends SessionMessage {
     public IdentityMessage(String id, Peer localPeer) {
         super(id);
         this.localPeer = localPeer;
-        seralizeAndCacheHeaders();
+        serializeAndCacheHeaders();
     }
 
     public IdentityMessage(Peer localPeer) {
         super();
         this.localPeer = localPeer;
-        seralizeAndCacheHeaders();
+        serializeAndCacheHeaders();
     }
 
     public Peer getPeer() {

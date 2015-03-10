@@ -14,7 +14,7 @@ public class DataTransferMessage extends SessionMessage {
         super();
         this.data = ByteBuffer.wrap(data);
         bodyLengthBytes = data.length;
-        seralizeAndCacheHeaders();
+        serializeAndCacheHeaders();
     }
 
     @Override

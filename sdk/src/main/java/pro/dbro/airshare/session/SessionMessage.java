@@ -17,8 +17,10 @@ import timber.log.Timber;
 /**
  * Represents a Session segment suitable for transport via a {@link pro.dbro.airshare.transport.Transport}
  *
- * Note: Children of this class are intended to be immutable. e.g: {@link #populateHeaders()}
- * will only be called once across multiple serializations.
+ * Note: Headers are intended to be immutable and so {@link #populateHeaders()}
+ * will only be called once across multiple serializations. Child classes must call
+ * {@link #serializeAndCacheHeaders()} before {@link #serialize(int, int)} is invoked, ideally
+ * within their constructors.
  *
  * Created by davidbrodsky on 2/22/15.
  */
@@ -30,8 +32,8 @@ public abstract class SessionMessage {
     /** Leading byte specifies header format version */
     public static final int HEADER_VERSION_BYTES   = 1;
 
-    /** Next bytes specify header size in bytes. uint32. Max header size: 4 GB */
-    public static final int HEADER_LENGTH_BYTES    = 4;
+    /** Next bytes specify header size in bytes as uint16. Max header size: 65.535 kB */
+    public static final int HEADER_LENGTH_BYTES    = 2;
 
     /** Required header map keys */
     public static final String HEADER_TYPE         = "type";
@@ -43,7 +45,7 @@ public abstract class SessionMessage {
     protected int    bodyLengthBytes;
     protected String id;
     private   HashMap<String, Object> headers;
-    private   byte[] serializedHeader;
+    private   byte[] serializedHeaders;
 
     /**
      * Construct a SessionMessage with a given id.
@@ -56,8 +58,8 @@ public abstract class SessionMessage {
         version = CURRENT_HEADER_VERSION;
         this.id = id;
 
-        // Child classes must call {@link seralizeAndCacheHeaders}
-        // in their constructors
+        // Child classes should call serializeAndCacheHeaders()
+        // in their constructors or else before serialize(..)
     }
 
     /**
@@ -71,8 +73,8 @@ public abstract class SessionMessage {
 
     /**
      * @return a HashMap representation of the message headers.
-     * This method will be called on construction, and so it should not
-     * rely on state set afterword.
+     * This method will be called once, and so it should not
+     * rely on state that cannot be represented on construction.
      */
     protected HashMap<String, Object> populateHeaders() {
         HashMap<String, Object> headerMap = new HashMap<>();
@@ -109,15 +111,19 @@ public abstract class SessionMessage {
      * byte idx | description
      * ---------|------------
      * [0]      | SessionMessage version
-     * [1-4]    | Header length
-     * [4-X]    | Header JSON. 'X' is value specified by Header length
+     * [1-2]    | Header length
+     * [2-X]    | Header JSON. 'X' is value specified by Header length
      * [X-Y]    | Body. 'Y' is value specified in 'body-length' entry of Header JSON.
      *
      * @param length should never be less than {@link #HEADER_LENGTH_BYTES} + {@link #HEADER_VERSION_BYTES}
      *
      */
     public @Nullable byte[] serialize(int offset, int length) {
-        if (offset < 0) throw new IllegalArgumentException("offset may not be negative");
+        if (offset < 0)
+            throw new IllegalArgumentException("Serialization offset may not be negative");
+
+        if (serializedHeaders == null)
+            throw new IllegalStateException("Must call serializeAndCacheHeaders() before serialization");
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
@@ -137,21 +143,25 @@ public abstract class SessionMessage {
 
                 ByteBuffer lengthBuffer = ByteBuffer.allocate(Integer.SIZE / 8)
                                                     .order(ByteOrder.LITTLE_ENDIAN)
-                                                    .putInt(serializedHeader.length);
+                                                    .putInt(serializedHeaders.length);
 
-                outputStream.write(lengthBuffer.array());
+                byte[] truncatedLength = new byte[HEADER_LENGTH_BYTES];
+                lengthBuffer.rewind();
+                // limit little endian value by ignoring last (most significant) bits
+                lengthBuffer.get(truncatedLength);
+                outputStream.write(truncatedLength);
 
                 bytesWritten += HEADER_LENGTH_BYTES;
             }
 
             // Write SessionMessage HashMap header if offset dictates
             if (offset + bytesWritten >= HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES &&
-                offset + bytesWritten < serializedHeader.length) {
+                offset + bytesWritten < serializedHeaders.length) {
 
                 int headerBytesToCopy = Math.min(length - bytesWritten,
-                                                 serializedHeader.length);
+                                                 serializedHeaders.length);
 
-                outputStream.write(serializedHeader,
+                outputStream.write(serializedHeaders,
                                    offset + bytesWritten - (HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES),
                                    headerBytesToCopy);
 
@@ -167,7 +177,7 @@ public abstract class SessionMessage {
                 int bodyOffset = Math.max(0,
                                           offset - (HEADER_LENGTH_BYTES +
                                                     HEADER_VERSION_BYTES +
-                                                    serializedHeader.length)
+                                                    serializedHeaders.length)
                 );
 
                 byte[] body = getBodyAtOffset(bodyOffset, length - bytesWritten);
@@ -203,15 +213,19 @@ public abstract class SessionMessage {
 
         return HEADER_VERSION_BYTES +
                HEADER_LENGTH_BYTES +
-               serializedHeader.length +
+               serializedHeaders.length +
                getBodyLengthBytes();
     }
 
-    protected void seralizeAndCacheHeaders() {
+    /**
+     * Cache the serialized representation of {@link #headers}.
+     * Must be called before {@link #serialize()} or {@link #serialize(int, int)}
+     */
+    protected void serializeAndCacheHeaders() {
         // Cache serialized version of header HashMap if necessary
-        if (serializedHeader == null) {
+        if (serializedHeaders == null) {
             headers = populateHeaders();
-            serializedHeader = new JSONObject(headers).toString().getBytes();
+            serializedHeaders = new JSONObject(headers).toString().getBytes();
         }
     }
 
