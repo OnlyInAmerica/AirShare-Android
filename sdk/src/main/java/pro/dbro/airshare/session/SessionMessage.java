@@ -44,7 +44,7 @@ public abstract class SessionMessage {
     protected String type;
     protected int    bodyLengthBytes;
     protected String id;
-    private   HashMap<String, Object> headers;
+    protected HashMap<String, Object> headers;
     private   byte[] serializedHeaders;
 
     /**
@@ -242,7 +242,7 @@ public abstract class SessionMessage {
         if(obj == this) return true;
         if(obj == null) return false;
 
-        if (getClass ().equals (obj.getClass ()))
+        if (getClass().equals(obj.getClass()))
         {
             final SessionMessage other = (SessionMessage) obj;
 

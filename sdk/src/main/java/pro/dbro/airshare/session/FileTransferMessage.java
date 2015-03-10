@@ -10,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.Objects;
 
 import timber.log.Timber;
 
@@ -43,11 +44,13 @@ public class FileTransferMessage extends SessionMessage {
 
     public static enum Type { OFFER, ACCEPT, TRANSFER }
 
+    /** Header keys */
     /** Describe the size of the offered body. This differs from
      * {@link SessionMessage#HEADER_BODY_LENGTH} because the body is not actually
      * included in the offer message.
      */
     public static final String HEADER_OFFER_LENGTH = "filetransfer-offer-length";
+    public static final String HEADER_FILENAME     = "filename";
 
     /** Values for SessionMessage {@link SessionMessage#HEADER_TYPE} header */
     public static final String HEADER_TYPE_OFFER    = "filetransfer-offer";
@@ -90,7 +93,7 @@ public class FileTransferMessage extends SessionMessage {
 
         return new FileTransferMessage((String) headers.get(SessionMessage.HEADER_ID),
                                        body,
-                                       (String) headers.get("filename"),
+                                       (String) headers.get(HEADER_FILENAME),
                                        (int) headers.get(SessionMessage.HEADER_BODY_LENGTH),
                                        type);
     }
@@ -182,8 +185,8 @@ public class FileTransferMessage extends SessionMessage {
             default:
                 throw new IllegalStateException("Unknown FileTransferMessage type");
         }
-        headerMap.put("type",     typeHeader);
-        headerMap.put("filename", filename);
+        headerMap.put(SessionMessage.HEADER_TYPE, typeHeader);
+        headerMap.put(HEADER_FILENAME,            filename);
 
         // If this is an Offer or Accept message, the body is not included so
         // it's length should be exclusively reported in a special FileTransferMessage header
@@ -247,6 +250,40 @@ public class FileTransferMessage extends SessionMessage {
             Timber.e(e, String.format("Failed to serialize %s at offset %d", filename, offset));
         }
         return null;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(headers.get(HEADER_TYPE),
+                headers.get(HEADER_BODY_LENGTH),
+                headers.get(HEADER_ID),
+                headers.get(HEADER_FILENAME));
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+
+        if(obj == this) return true;
+        if(obj == null) return false;
+
+        if (getClass().equals(obj.getClass()))
+        {
+            final FileTransferMessage other = (FileTransferMessage) obj;
+
+            boolean result = super.equals(obj) &&
+                    Objects.equals(getHeaders().get(HEADER_FILENAME),
+                            other.getHeaders().get(HEADER_FILENAME)) &&
+                    type == other.type;
+
+            if (this.type != Type.TRANSFER) {
+                result = result && Objects.equals(getHeaders().get(HEADER_OFFER_LENGTH),
+                                                  other.getHeaders().get(HEADER_OFFER_LENGTH));
+            }
+
+            return result;
+        }
+
+        return false;
     }
 
 }
