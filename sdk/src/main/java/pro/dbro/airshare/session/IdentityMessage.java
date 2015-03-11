@@ -35,13 +35,19 @@ public class IdentityMessage extends SessionMessage {
     public IdentityMessage(String id, Peer localPeer) {
         super(id);
         this.localPeer = localPeer;
+        init();
         serializeAndCacheHeaders();
     }
 
     public IdentityMessage(Peer localPeer) {
         super();
         this.localPeer = localPeer;
+        init();
         serializeAndCacheHeaders();
+    }
+
+    private void init() {
+        type = HEADER_TYPE;
     }
 
     public Peer getPeer() {
@@ -52,9 +58,8 @@ public class IdentityMessage extends SessionMessage {
     protected HashMap<String, Object> populateHeaders() {
         HashMap<String, Object> headerMap = super.populateHeaders();
 
-        headerMap.put(SessionMessage.HEADER_TYPE,   HEADER_TYPE);
-        headerMap.put(HEADER_ALIAS,                 localPeer.getAlias());
-        headerMap.put(HEADER_PUBKEY,                DataUtil.bytesToHex(localPeer.getPublicKey()));
+        headerMap.put(HEADER_ALIAS,  localPeer.getAlias());
+        headerMap.put(HEADER_PUBKEY, DataUtil.bytesToHex(localPeer.getPublicKey()));
 
         return headerMap;
     }

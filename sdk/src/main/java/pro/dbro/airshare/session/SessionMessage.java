@@ -40,12 +40,12 @@ public abstract class SessionMessage {
     public static final String HEADER_BODY_LENGTH  = "body-length";
     public static final String HEADER_ID           = "id";
 
-    protected int    version;
-    protected String type;
-    protected int    bodyLengthBytes;
-    protected String id;
+    protected int                     version;
+    protected String                  type;
+    protected int                     bodyLengthBytes;
+    protected String                  id;
     protected HashMap<String, Object> headers;
-    private   byte[] serializedHeaders;
+    private   byte[]                  serializedHeaders;
 
     /**
      * Construct a SessionMessage with a given id.
@@ -78,9 +78,9 @@ public abstract class SessionMessage {
      */
     protected HashMap<String, Object> populateHeaders() {
         HashMap<String, Object> headerMap = new HashMap<>();
-        headerMap.put(HEADER_TYPE,    type);
+        headerMap.put(HEADER_TYPE,        type);
         headerMap.put(HEADER_BODY_LENGTH, bodyLengthBytes);
-        headerMap.put(HEADER_ID,      id);
+        headerMap.put(HEADER_ID,          id);
         return headerMap;
     }
 

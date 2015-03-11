@@ -3,7 +3,6 @@ package pro.dbro.airshare;
 import android.app.Application;
 import android.content.res.AssetFileDescriptor;
 import android.test.ApplicationTestCase;
-import android.util.Log;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,22 +60,22 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
         int assetLength = (int) fd.getLength();
 
         messages.add(
-                new FileTransferMessage(getContext().getAssets().open("cats.jpg"), // inputStream
-                                        "cats.jpg",                                // filename
-                                        assetLength,                               // length
-                                        FileTransferMessage.Type.OFFER));          // type
+                new FileTransferMessage(getContext().getAssets().open("cats.jpg"),  // inputStream
+                                        "cats.jpg",                                 // filename
+                                        assetLength,                                // length
+                                        FileTransferMessage.TransferType.OFFER));   // type
 
         messages.add(
-                new FileTransferMessage(getContext().getAssets().open("cats.jpg"), // inputStream
-                                        "cats.jpg",                                // filename
-                                        assetLength,                               // length
-                                        FileTransferMessage.Type.ACCEPT));         // type
+                new FileTransferMessage(getContext().getAssets().open("cats.jpg"),  // inputStream
+                                        "cats.jpg",                                 // filename
+                                        assetLength,                                // length
+                                        FileTransferMessage.TransferType.ACCEPT));  // type
 
         messages.add(
-                new FileTransferMessage(getContext().getAssets().open("cats.jpg"), // inputStream
-                                        "cats.jpg",                                // filename
-                                        assetLength,                               // length
-                                        FileTransferMessage.Type.TRANSFER));       // type
+                new FileTransferMessage(getContext().getAssets().open("cats.jpg"),  // inputStream
+                                        "cats.jpg",                                 // filename
+                                        assetLength,                                // length
+                                        FileTransferMessage.TransferType.TRANSFER));// type
 
     }
 

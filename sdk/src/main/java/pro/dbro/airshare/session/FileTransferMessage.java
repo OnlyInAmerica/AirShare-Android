@@ -19,20 +19,20 @@ import timber.log.Timber;
  * {@link java.io.File} or {@link java.io.InputStream}.
  *
  * A FileTransferMessage has three types represented by
- * {@link pro.dbro.airshare.session.FileTransferMessage.Type} which form the three-part
+ * {@link pro.dbro.airshare.session.FileTransferMessage.TransferType} which form the three-part
  * sequence of offering, accepting, and completing a transfer.
  *
- * {@link Type#OFFER} is the sender's offering of a transfer. This message consists of only
+ * {@link pro.dbro.airshare.session.FileTransferMessage.TransferType#OFFER} is the sender's offering of a transfer. This message consists of only
  * a header which describes the asset's filename and length. This type is indicated by
  * the SessionMessage {@link SessionMessage#HEADER_TYPE} header having value
  * {@link #HEADER_TYPE_OFFER}
  *
- * {@link Type#ACCEPT} is the receiver's acceptance of a sender's offer message. This message
+ * {@link pro.dbro.airshare.session.FileTransferMessage.TransferType#ACCEPT} is the receiver's acceptance of a sender's offer message. This message
  * differs from the offer message only in that the type indicated by
  * the SessionMessage {@link SessionMessage#HEADER_TYPE} header will have value
  * {@link #HEADER_TYPE_ACCEPT}
  *
- * {@link Type#TRANSFER} is the sender's actual transfer message in response to the receiver's
+ * {@link pro.dbro.airshare.session.FileTransferMessage.TransferType#TRANSFER} is the sender's actual transfer message in response to the receiver's
  * accept message. This message consists of both a header which describes the asset's filename and
  * length as well as the corresponding asset body. This type is indicated by
  * the SessionMessage {@link SessionMessage#HEADER_TYPE} header having value
@@ -42,7 +42,7 @@ import timber.log.Timber;
  */
 public class FileTransferMessage extends SessionMessage {
 
-    public static enum Type { OFFER, ACCEPT, TRANSFER }
+    public static enum TransferType { OFFER, ACCEPT, TRANSFER }
 
     /** Header keys */
     /** Describe the size of the offered body. This differs from
@@ -59,7 +59,7 @@ public class FileTransferMessage extends SessionMessage {
 
     private @Nullable File file;
     private @NonNull  BufferedInputStream inputStream;
-    private @NonNull  Type type;
+    private @NonNull  TransferType transferType;
     private @NonNull  String filename;
 
     private int bodyBytesRead;
@@ -75,35 +75,35 @@ public class FileTransferMessage extends SessionMessage {
 
         super((String) headers.get(SessionMessage.HEADER_ID));
 
-        String typeStr = (String) headers.get(SessionMessage.HEADER_TYPE);
-        Type type = null;
-        switch (typeStr) {
+        String type = (String) headers.get(SessionMessage.HEADER_TYPE);
+        TransferType transferType = null;
+        switch (type) {
             case HEADER_TYPE_OFFER:
-                type = Type.OFFER;
+                transferType = TransferType.OFFER;
                 break;
 
             case HEADER_TYPE_ACCEPT:
-                type = Type.ACCEPT;
+                transferType = TransferType.ACCEPT;
                 break;
 
             case HEADER_TYPE_TRANSFER:
-                type = Type.TRANSFER;
+                transferType = TransferType.TRANSFER;
                 break;
 
             default:
-                throw new IllegalArgumentException(String.format("Unknown type '%s. " +
+                throw new IllegalArgumentException(String.format("Unknown transferType '%s. " +
                         "Is FileTransferMessage#fromHeadersAndBody up to date with the allowed " +
-                        "values of FileTransferMessage#Type?", typeStr));
+                        "values of FileTransferMessage#Type?", type));
 
         }
 
-        this.headers    = headers;
-        this.type       = type;
-        filename        = (String) headers.get(HEADER_FILENAME);
-        bodyLengthBytes = (int) headers.get(HEADER_BODY_LENGTH);
-        inputStream     = new BufferedInputStream(body);
+        this.headers      = headers;
+        this.transferType = transferType;
+        filename          = (String) headers.get(HEADER_FILENAME);
+        bodyLengthBytes   = (int) headers.get(HEADER_BODY_LENGTH);
+        inputStream       = new BufferedInputStream(body);
 
-        if (type != Type.TRANSFER)
+        if (transferType != TransferType.TRANSFER)
             offerLengthBytes = (int) headers.get(HEADER_OFFER_LENGTH);
 
         init();
@@ -119,13 +119,13 @@ public class FileTransferMessage extends SessionMessage {
      * The length of file should be no more than 2.14 GB because it is stored as a signed 32 bit int.
      * @throws FileNotFoundException
      */
-    public FileTransferMessage(@NonNull File file, @NonNull Type type) throws FileNotFoundException {
+    public FileTransferMessage(@NonNull File file, @NonNull TransferType transferType) throws FileNotFoundException {
         super();
         this.file = file;
         this.filename = file.getName();
-        this.type = type;
+        this.transferType = transferType;
 
-        if (type == Type.TRANSFER)
+        if (transferType == TransferType.TRANSFER)
             bodyLengthBytes  = (int) file.length();
         else
             offerLengthBytes = (int) file.length();
@@ -145,13 +145,13 @@ public class FileTransferMessage extends SessionMessage {
     public FileTransferMessage(@NonNull InputStream inputStream,
                                @NonNull String filename,
                                int length,
-                               @NonNull Type type) {
+                               @NonNull TransferType transferType) {
         super();
-        this.type = type;
+        this.transferType = transferType;
         this.filename = filename;
         this.inputStream = new BufferedInputStream(inputStream);
 
-        if (type == Type.TRANSFER)
+        if (transferType == TransferType.TRANSFER)
             bodyLengthBytes  = length;
         else
             offerLengthBytes = length;
@@ -167,6 +167,26 @@ public class FileTransferMessage extends SessionMessage {
         inputStream.mark(bodyLengthBytes);
         bodyBytesRead = 0;
 
+        String type = null;
+
+        switch(transferType) {
+            case OFFER:
+                type = HEADER_TYPE_OFFER;
+                break;
+
+            case ACCEPT:
+                type =  HEADER_TYPE_ACCEPT;
+                break;
+
+            case TRANSFER:
+                type = HEADER_TYPE_TRANSFER;
+                break;
+
+            default:
+                throw new IllegalStateException("Unknown FileTransferMessage transferType");
+        }
+
+        this.type = type;
         serializeAndCacheHeaders();
     }
 
@@ -174,30 +194,11 @@ public class FileTransferMessage extends SessionMessage {
     protected HashMap<String, Object> populateHeaders() {
         HashMap<String, Object> headerMap = super.populateHeaders();
 
-        String typeHeader = null;
-
-        switch(type) {
-            case OFFER:
-                typeHeader = HEADER_TYPE_OFFER;
-                break;
-
-            case ACCEPT:
-                typeHeader =  HEADER_TYPE_ACCEPT;
-                break;
-
-            case TRANSFER:
-                typeHeader = HEADER_TYPE_TRANSFER;
-                break;
-
-            default:
-                throw new IllegalStateException("Unknown FileTransferMessage type");
-        }
-        headerMap.put(SessionMessage.HEADER_TYPE, typeHeader);
-        headerMap.put(HEADER_FILENAME,            filename);
+        headerMap.put(HEADER_FILENAME, filename);
 
         // If this is an Offer or Accept message, the body is not included so
         // it's length should be exclusively reported in a special FileTransferMessage header
-        if (type != Type.TRANSFER) {
+        if (transferType != TransferType.TRANSFER) {
             headerMap.put(HEADER_OFFER_LENGTH, offerLengthBytes);
         }
 
@@ -210,7 +211,7 @@ public class FileTransferMessage extends SessionMessage {
     public long getBodyLengthBytes() {
         // Only the TRANSFER message actually includes the body
         // OFFER and ACCEPT use bodyLengthBytes to populate the HEADER_OFFER_LENGTH header
-        return type == Type.TRANSFER ? bodyLengthBytes : 0;
+        return transferType == TransferType.TRANSFER ? bodyLengthBytes : 0;
     }
 
     @Override
@@ -262,9 +263,9 @@ public class FileTransferMessage extends SessionMessage {
     public int hashCode() {
         HashMap headers = getHeaders();
         return Objects.hash(headers.get(HEADER_TYPE),
-                headers.get(HEADER_BODY_LENGTH),
-                headers.get(HEADER_ID),
-                headers.get(HEADER_FILENAME));
+                            headers.get(HEADER_BODY_LENGTH),
+                            headers.get(HEADER_ID),
+                            headers.get(HEADER_FILENAME));
     }
 
     @Override
@@ -280,9 +281,9 @@ public class FileTransferMessage extends SessionMessage {
             boolean result = super.equals(other) &&
                     Objects.equals(getHeaders().get(HEADER_FILENAME),
                             other.getHeaders().get(HEADER_FILENAME)) &&
-                    type == other.type;
+                    transferType == other.transferType;
 
-            if (this.type != Type.TRANSFER) {
+            if (this.transferType != TransferType.TRANSFER) {
                 result = result && Objects.equals(getHeaders().get(HEADER_OFFER_LENGTH),
                                                   other.getHeaders().get(HEADER_OFFER_LENGTH));
             }
