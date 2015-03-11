@@ -255,7 +255,7 @@ public class SessionMessageReceiver {
             if (callback != null) {
                 try {
 
-                    SessionMessage message = sessionMessageFromHeaderAndbody(headers, new FileInputStream(bodyFile));
+                    SessionMessage message = sessionMessageFromHeaderAndBody(headers, new FileInputStream(bodyFile));
                     if (callback != null) callback.onComplete(message, null);
                 } catch (FileNotFoundException e) {
                     Timber.e(e, "Failed to get handle on body file for reading");
@@ -291,8 +291,8 @@ public class SessionMessageReceiver {
         buffer = newBuffer;
     }
 
-    private static @Nullable SessionMessage sessionMessageFromHeaderAndbody(HashMap<String, Object> headers,
-                                                                               FileInputStream body) {
+    private static @Nullable SessionMessage sessionMessageFromHeaderAndBody(HashMap<String, Object> headers,
+                                                                            FileInputStream body) {
         if (!headers.containsKey(SessionMessage.HEADER_TYPE))
             throw new IllegalArgumentException("headers map must have 'type' entry");
 
@@ -304,7 +304,7 @@ public class SessionMessageReceiver {
             case FileTransferMessage.HEADER_TYPE_ACCEPT:
             case FileTransferMessage.HEADER_TYPE_OFFER:
             case FileTransferMessage.HEADER_TYPE_TRANSFER:
-                return FileTransferMessage.fromHeadersAndBody(headers, body);
+                return new FileTransferMessage(headers, body);
 
         }
         return null;
@@ -313,7 +313,7 @@ public class SessionMessageReceiver {
     // <editor-fold desc="JSON Utils">
 
     public static HashMap<String, Object> toMap(JSONObject object) throws JSONException {
-        HashMap<String, Object> map = new HashMap();
+        HashMap<String, Object> map = new HashMap<>();
         Iterator keys = object.keys();
         while (keys.hasNext()) {
             String key = (String) keys.next();

@@ -64,11 +64,15 @@ public class FileTransferMessage extends SessionMessage {
 
     private int bodyBytesRead;
 
+    // <editor-fold desc="Incoming Constructors">
+
     /**
-     * Convenience creator for deserialization
+     * Construct a FileTransferMessage from deserialized headers and body.
      */
-    public static FileTransferMessage fromHeadersAndBody(HashMap<String, Object> headers,
-                                                         InputStream body) {
+    public FileTransferMessage(HashMap<String, Object> headers,
+                               InputStream body) {
+
+        super((String) headers.get(SessionMessage.HEADER_ID));
 
         String typeStr = (String) headers.get(SessionMessage.HEADER_TYPE);
         Type type = null;
@@ -89,13 +93,38 @@ public class FileTransferMessage extends SessionMessage {
                 throw new IllegalArgumentException(String.format("Unknown type '%s. " +
                         "Is FileTransferMessage#fromHeadersAndBody up to date with the allowed " +
                         "values of FileTransferMessage#Type?", typeStr));
+
         }
 
-        return new FileTransferMessage((String) headers.get(SessionMessage.HEADER_ID),
-                                       body,
-                                       (String) headers.get(HEADER_FILENAME),
-                                       (int) headers.get(SessionMessage.HEADER_BODY_LENGTH),
-                                       type);
+        this.headers = headers;
+        this.type = type;
+        filename = (String) headers.get(HEADER_FILENAME);
+        bodyLengthBytes = (int) headers.get(HEADER_BODY_LENGTH);
+        inputStream = new BufferedInputStream(body);
+
+        init();
+    }
+
+    // </editor-fold desc="Incoming Constructors">
+
+    // <editor-fold desc="Outgoing Constructors">
+
+    /**
+     * Construct a FileTransferMessage from a File source.
+     *
+     * The length of file should be no more than 2.14 GB because it is stored as a signed 32 bit int.
+     * @throws FileNotFoundException
+     */
+    public FileTransferMessage(@NonNull File file, @NonNull Type type) throws FileNotFoundException {
+        super();
+        this.file = file;
+        this.filename = file.getName();
+        this.type = type;
+        bodyLengthBytes = (int) file.length();
+
+        inputStream = new BufferedInputStream(new FileInputStream(file));
+
+        init();
     }
 
     /**
@@ -118,45 +147,10 @@ public class FileTransferMessage extends SessionMessage {
         init();
     }
 
-    /**
-     * Construct a FileTransferMessage from an InputStream source and a given id.
-     * This should only be used for deserialiation of incoming FileTransferMessages.
-     * To create a new FileTransferMessage for transmission, allow a new unique
-     * identifier to be generated via
-     * {@link #FileTransferMessage(java.io.InputStream, String, int, pro.dbro.airshare.session.FileTransferMessage.Type)}
-     */
-    public FileTransferMessage(@NonNull String id,
-                               @NonNull InputStream inputStream,
-                               @NonNull String filename,
-                               int length,
-                               @NonNull Type type) {
-        super(id);
-        this.type = type;
-        this.filename = filename;
-        bodyLengthBytes = length;
-        this.inputStream = new BufferedInputStream(inputStream);
-
-        init();
-    }
-
-    /**
-     * Create a message describing a File transfer. The length of file should be no
-     * more than 2.14 GB because it is stored as a signed 32 bit int.
-     * @throws FileNotFoundException
-     */
-    public FileTransferMessage(@NonNull File file, @NonNull Type type) throws FileNotFoundException {
-        super();
-        this.file = file;
-        this.filename = file.getName();
-        this.type = type;
-        bodyLengthBytes = (int) file.length();
-
-        inputStream = new BufferedInputStream(new FileInputStream(file));
-
-        init();
-    }
+    // </editor-fold desc="Outgoing Constructors">
 
     private void init() {
+        // TODO : On reflection we shouldn't be marking the stream with such a large limit. Maybe pick a small sane value?
         this.inputStream.mark(bodyLengthBytes);
         bodyBytesRead = 0;
 
@@ -254,6 +248,7 @@ public class FileTransferMessage extends SessionMessage {
 
     @Override
     public int hashCode() {
+        HashMap headers = getHeaders();
         return Objects.hash(headers.get(HEADER_TYPE),
                 headers.get(HEADER_BODY_LENGTH),
                 headers.get(HEADER_ID),
@@ -270,7 +265,7 @@ public class FileTransferMessage extends SessionMessage {
         {
             final FileTransferMessage other = (FileTransferMessage) obj;
 
-            boolean result = super.equals(obj) &&
+            boolean result = super.equals(other) &&
                     Objects.equals(getHeaders().get(HEADER_FILENAME),
                             other.getHeaders().get(HEADER_FILENAME)) &&
                     type == other.type;

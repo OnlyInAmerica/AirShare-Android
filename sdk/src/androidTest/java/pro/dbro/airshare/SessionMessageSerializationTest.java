@@ -3,9 +3,11 @@ package pro.dbro.airshare;
 import android.app.Application;
 import android.content.res.AssetFileDescriptor;
 import android.test.ApplicationTestCase;
+import android.util.Log;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -109,7 +111,7 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
                             Timber.d("Deserialized Message " + originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE));
 
                             assertEquals(originalMessage, deserializedMessage);
-
+                            assertTrue(compareMessageBodies(originalMessage, deserializedMessage));
                         }
                     }
             );
@@ -131,5 +133,32 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
                     readIdx));
 
         }
+    }
+
+    private boolean compareMessageBodies(SessionMessage first, SessionMessage second) {
+        final int BUFFER_SIZE_BYTES = 50 * 1024;
+        int readIdx = 0;
+        while(true) {
+            byte[] thisChunk = first.serialize(readIdx, BUFFER_SIZE_BYTES);
+            byte[] otherChunk = second.serialize(readIdx, BUFFER_SIZE_BYTES);
+
+            if (thisChunk == null && otherChunk == null)
+                break;
+
+            if (thisChunk == null || otherChunk == null) {
+                Timber.d("Payloads unequal length");
+                return false; // Payloads differed in length
+            }
+
+            if (!Arrays.equals(thisChunk, otherChunk)) {
+                Timber.d("Payload contents differ");
+                return false; // Payload chunk differed
+            }
+
+            readIdx += BUFFER_SIZE_BYTES;
+        }
+
+        Timber.d("Compared " + readIdx + " body bytes successfully");
+        return true;
     }
 }

@@ -222,9 +222,8 @@ public abstract class SessionMessage {
      * Must be called before {@link #serialize()} or {@link #serialize(int, int)}
      */
     protected void serializeAndCacheHeaders() {
-        // Cache serialized version of header HashMap if necessary
         if (serializedHeaders == null) {
-            headers = populateHeaders();
+            if (headers == null) headers = populateHeaders();
             serializedHeaders = new JSONObject(headers).toString().getBytes();
         }
     }
