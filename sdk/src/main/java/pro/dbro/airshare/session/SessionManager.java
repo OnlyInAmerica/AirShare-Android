@@ -34,15 +34,15 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
 
     }
 
-    private Context context;
-    private HashMap<Peer, Set<Transport>> peerTransports;
-    private Set<Transport> transports;
-    private LocalPeer localPeer;
-    private IdentityMessage localIdentityMessage;
-    private BidiMap<String, Peer> identifiedPeers = new DualHashBidiMap<>();
-    private Set<String> identifyingPeers = new HashSet<>();
-    private SessionMessageReceiver receiver;
-    private SessionManagerCallback callback;
+    private Context                                 context;
+    private Set<Transport>                          transports;
+    private LocalPeer                               localPeer;
+    private IdentityMessage                         localIdentityMessage;
+    private SessionManagerCallback                  callback;
+    private HashMap<Peer, Set<Transport>>           peerTransports        = new HashMap<>();
+    private BidiMap<String, SessionMessageReceiver> peerReceivers         = new DualHashBidiMap<>();
+    private BidiMap<String, Peer>                   identifiedPeers       = new DualHashBidiMap<>();
+    private Set<String>                             identifyingPeers      = new HashSet<>();
 
     // <editor-fold desc="Public API">
 
@@ -55,9 +55,7 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
         this.callback = callback;
         this.context = context;
 
-        peerTransports = new HashMap<>();
         localIdentityMessage = new IdentityMessage(localPeer);
-        receiver = new SessionMessageReceiver(context, this);
 
         initializeTransports(serviceName);
     }
@@ -102,11 +100,19 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
 
     @Override
     public void dataReceivedFromIdentifier(Transport transport, byte[] data, String identifier) {
+
+        if (!peerReceivers.containsKey(identifier))
+            peerReceivers.put(identifier, new SessionMessageReceiver(context, this));
+
+        peerReceivers.get(identifier)
+                     .dataReceived(data);
+
     }
 
     @Override
     public void dataSentToIdentifier(Transport transport, byte[] data, String identifier) {
-
+        // TODO Need a lightweight SessionMessageReceiver that monitors when a message is completely accumulated,
+        // TODO but doesn't save accumulating data.
     }
 
     @Override
@@ -134,16 +140,22 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
 
     @Override
     public void onHeaderReady(HashMap<String, Object> header) {
-
+        Timber.d("Received header for %s message", header.get(SessionMessage.HEADER_TYPE));
     }
 
     @Override
     public void onProgress(float progress) {
-
+        Timber.d("Received message with progress %f", progress);
     }
 
     @Override
     public void onComplete(SessionMessage message, Exception e) {
+        if (e == null) {
+            Timber.d("Received complete %s message", message.getType());
+        } else {
+            Timber.d("Incoming message failed with error " + e.getLocalizedMessage());
+            e.printStackTrace();
+        }
 
     }
 

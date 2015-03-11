@@ -45,18 +45,20 @@ public class SessionMessageReceiver {
     public static interface SessionMessageReceiverCallback {
 
         public void onHeaderReady(HashMap<String, Object> header);
+
         public void onProgress(float progress);
+
         public void onComplete(SessionMessage message, Exception e);
 
     }
 
-    private Context context;
-    private ByteBuffer buffer;
+    private Context                        context;
+    private ByteBuffer                     buffer;
     private SessionMessageReceiverCallback callback;
-    private File bodyFile;
-    private FileOutputStream bodyStream;
-    private HashMap<String, Object> headers;
-    private ByteBuffer headerLengthBuffer;
+    private File                           bodyFile;
+    private FileOutputStream               bodyStream;
+    private HashMap<String, Object>        headers;
+    private ByteBuffer                     headerLengthBuffer;
 
     private boolean gotVersion;
     private boolean gotHeaderLength;
