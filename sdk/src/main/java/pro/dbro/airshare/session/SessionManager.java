@@ -20,16 +20,18 @@ import timber.log.Timber;
 /**
  * Created by davidbrodsky on 2/21/15.
  */
-public class SessionManager implements Transport.TransportCallback, Session.SessionCallback {
-
-    private HashMap<Peer, Session> sessions = new HashMap<>();
-    private BidiMap<String, Peer> identifiedPeers = new DualHashBidiMap<>();
-    private Set<String> identifyingPeers = new HashSet<>();
+public class SessionManager implements Transport.TransportCallback, SessionMessageReceiver.SessionMessageReceiverCallback {
 
     public interface SessionManagerCallback {
-        public void errorEstablishingSession(SessionManager manager, Exception e);
-        public void sessionEstablished(SessionManager manager, Session session);
+
         public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus);
+
+        public void messageReceivedFromPeer(SessionMessage message, Peer recipient);
+
+        public void messageSendingToPeer(SessionMessage message, Peer recipient, float progress);
+
+        public void messageSentToPeer(SessionMessage message, Peer recipient, Exception exception);
+
     }
 
     private Context context;
@@ -37,7 +39,12 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
     private Set<Transport> transports;
     private LocalPeer localPeer;
     private IdentityMessage localIdentityMessage;
+    private BidiMap<String, Peer> identifiedPeers = new DualHashBidiMap<>();
+    private Set<String> identifyingPeers = new HashSet<>();
+    private SessionMessageReceiver receiver;
     private SessionManagerCallback callback;
+
+    // <editor-fold desc="Public API">
 
     public SessionManager(Context context,
                           String serviceName,
@@ -47,19 +54,12 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
         this.localPeer = localPeer;
         this.callback = callback;
         this.context = context;
-        peerTransports = new HashMap<>();
 
+        peerTransports = new HashMap<>();
         localIdentityMessage = new IdentityMessage(localPeer);
+        receiver = new SessionMessageReceiver(context, this);
 
         initializeTransports(serviceName);
-    }
-
-    /**
-     * Initialize the default set of Transports
-     */
-    private void initializeTransports(String serviceName) {
-        transports = new HashSet<>();
-        transports.add(new BLETransport(context, serviceName, this));
     }
 
     public void advertiseLocalPeer() {
@@ -72,42 +72,36 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
             transport.scanForPeers();
     }
 
-    public void startSessionWithPeer(Peer peer) {
-        Transport transport = getPreferredTransportForPeer(peer);
-        if (transport == null) {
-            Timber.e("No transport found for peer " + peer);
-            return;
-        }
+    public void sendSessionMessage(SessionMessage message, Peer recipient) {
 
-        if (sessions.containsKey(peer)) {
-            Timber.w("Session already exists for peer " + peer);
-            return;
-        }
-        // Session now owns transport
-        Session session = new Session(transport, localPeer, peer, this);
-        sessions.put(peer, session);
-
-        if (callback != null)
-            callback.sessionEstablished(this, sessions.get(peer));
     }
 
-    public void takeOwnershipOfTransportFromSession(Session session) {
-        session.getTransport().setTransportCallback(this);
+    // </editor-fold desc="Public API">
+
+    // <editor-fold desc="Private API">
+
+    private void initializeTransports(String serviceName) {
+        transports = new HashSet<>();
+        transports.add(new BLETransport(context, serviceName, this));
     }
 
-    @Nullable
-    public Transport getPreferredTransportForPeer(Peer peer) {
+    private @Nullable Transport getPreferredTransportForPeer(Peer peer) {
         // TODO : Provide Transport preference order. Perhaps each Transport has a unique int preference score
         return peerTransports.get(peer)
                              .iterator()
                              .next();
     }
 
+    private boolean shouldIdentifyPeer(String identifier) {
+        return !identifiedPeers.containsKey(identifier) && !identifyingPeers.contains(identifier);
+    }
+
+    // </editor-fold desc="Private API">
+
     // <editor-fold desc="TransportCallback">
 
     @Override
     public void dataReceivedFromIdentifier(Transport transport, byte[] data, String identifier) {
-        // Accumulate data. Should only ever be an IdentityMessage
     }
 
     @Override
@@ -130,28 +124,29 @@ public class SessionManager implements Transport.TransportCallback, Session.Sess
                 break;
 
             case DISCONNECTED:
-                // TODO If we have a session with the disconnected peer, return ownership
-                // of Transport it occupied to SessionManager
                 break;
         }
-
-
-
     }
 
     // </editor-fold desc="TransportCallback">
 
-    // <editor-fold desc="SessionCallback">
+    // <editor-fold desc="SessionMessageReceiverCallback">
 
     @Override
-    public void messageOffered(Session session, SessionMessage message) {
+    public void onHeaderReady(HashMap<String, Object> header) {
 
     }
 
-    // </editor-fold desc="SessionCallback">
+    @Override
+    public void onProgress(float progress) {
 
-    private boolean shouldIdentifyPeer(String identifer) {
-        return !identifiedPeers.containsKey(identifer) && !identifyingPeers.contains(identifer);
     }
+
+    @Override
+    public void onComplete(SessionMessage message, Exception e) {
+
+    }
+
+    // </editor-fold desc="SessionMessageReceiverCallback">
 
 }
