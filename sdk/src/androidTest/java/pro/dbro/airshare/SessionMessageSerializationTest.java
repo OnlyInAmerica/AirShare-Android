@@ -112,6 +112,7 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
 
                             assertEquals(originalMessage, deserializedMessage);
                             assertTrue(compareMessageBodies(originalMessage, deserializedMessage));
+                            isComplete.set(true);
                         }
                     }
             );
@@ -128,16 +129,24 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
                 receiver.dataReceived(serializedChunk);
             }
 
-            Timber.d(String.format("Message %s Sent %d bytes to receiver",
+            receiver.reset();
+
+            Timber.d(String.format("'%s' message sent %d bytes to receiver",
                     originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE),
                     readIdx));
+
+            assertTrue(String.format("'%s' message was not deserialized",
+                                     originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE)),
+                      isComplete.get());
 
         }
     }
 
     private boolean compareMessageBodies(SessionMessage first, SessionMessage second) {
+        if (first.getHeaderLengthBytes() != second.getHeaderLengthBytes()) return false;
+
         final int BUFFER_SIZE_BYTES = 50 * 1024;
-        int readIdx = 0;
+        int readIdx = first.getHeaderLengthBytes(); // skip the header
         while(true) {
             byte[] thisChunk = first.serialize(readIdx, BUFFER_SIZE_BYTES);
             byte[] otherChunk = second.serialize(readIdx, BUFFER_SIZE_BYTES);
@@ -158,7 +167,7 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
             readIdx += BUFFER_SIZE_BYTES;
         }
 
-        Timber.d("Compared " + readIdx + " body bytes successfully");
+        Timber.d("Compared " + (readIdx - first.getHeaderLengthBytes()) + " body bytes successfully");
         return true;
     }
 }

@@ -63,6 +63,7 @@ public class FileTransferMessage extends SessionMessage {
     private @NonNull  String filename;
 
     private int bodyBytesRead;
+    private int offerLengthBytes;
 
     // <editor-fold desc="Incoming Constructors">
 
@@ -96,11 +97,14 @@ public class FileTransferMessage extends SessionMessage {
 
         }
 
-        this.headers = headers;
-        this.type = type;
-        filename = (String) headers.get(HEADER_FILENAME);
+        this.headers    = headers;
+        this.type       = type;
+        filename        = (String) headers.get(HEADER_FILENAME);
         bodyLengthBytes = (int) headers.get(HEADER_BODY_LENGTH);
-        inputStream = new BufferedInputStream(body);
+        inputStream     = new BufferedInputStream(body);
+
+        if (type != Type.TRANSFER)
+            offerLengthBytes = (int) headers.get(HEADER_OFFER_LENGTH);
 
         init();
     }
@@ -120,7 +124,11 @@ public class FileTransferMessage extends SessionMessage {
         this.file = file;
         this.filename = file.getName();
         this.type = type;
-        bodyLengthBytes = (int) file.length();
+
+        if (type == Type.TRANSFER)
+            bodyLengthBytes  = (int) file.length();
+        else
+            offerLengthBytes = (int) file.length();
 
         inputStream = new BufferedInputStream(new FileInputStream(file));
 
@@ -141,8 +149,13 @@ public class FileTransferMessage extends SessionMessage {
         super();
         this.type = type;
         this.filename = filename;
-        bodyLengthBytes = length;
         this.inputStream = new BufferedInputStream(inputStream);
+
+        if (type == Type.TRANSFER)
+            bodyLengthBytes  = length;
+        else
+            offerLengthBytes = length;
+
 
         init();
     }
@@ -151,7 +164,7 @@ public class FileTransferMessage extends SessionMessage {
 
     private void init() {
         // TODO : On reflection we shouldn't be marking the stream with such a large limit. Maybe pick a small sane value?
-        this.inputStream.mark(bodyLengthBytes);
+        inputStream.mark(bodyLengthBytes);
         bodyBytesRead = 0;
 
         serializeAndCacheHeaders();
@@ -185,8 +198,7 @@ public class FileTransferMessage extends SessionMessage {
         // If this is an Offer or Accept message, the body is not included so
         // it's length should be exclusively reported in a special FileTransferMessage header
         if (type != Type.TRANSFER) {
-            headerMap.put(SessionMessage.HEADER_BODY_LENGTH, 0);
-            headerMap.put(HEADER_OFFER_LENGTH, bodyLengthBytes);
+            headerMap.put(HEADER_OFFER_LENGTH, offerLengthBytes);
         }
 
 //        headerMap.put("resumeoffset", 439439);

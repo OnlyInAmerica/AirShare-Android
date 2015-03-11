@@ -88,6 +88,14 @@ public abstract class SessionMessage {
         return type;
     }
 
+    /**
+     * @return the length of the serialized headers in bytes, or -1 if not
+     * yet known. See {@link #serializeAndCacheHeaders()}
+     */
+    public int getHeaderLengthBytes() {
+        return serializedHeaders == null ? -1 : serializedHeaders.length;
+    }
+
     public HashMap<String, Object> getHeaders() {
         return headers;
     }

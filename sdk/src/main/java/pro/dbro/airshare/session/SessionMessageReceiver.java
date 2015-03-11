@@ -146,7 +146,7 @@ public class SessionMessageReceiver {
                     callback.onComplete(null, new UnsupportedOperationException("Unknown SessionMessage version"));
                 return;
             }
-            dataBytesProcessed += 1;
+            dataBytesProcessed += SessionMessage.HEADER_VERSION_BYTES;
             gotVersion = true;
         }
 
@@ -157,7 +157,6 @@ public class SessionMessageReceiver {
             SessionMessage.HEADER_VERSION_BYTES + SessionMessage.HEADER_LENGTH_BYTES) {
 
             // Get header length and store. Deserialize header when possible
-            // TODO If header is above some size, copy to FileOutputStream
             byte[] headerLengthBytes = new byte[SessionMessage.HEADER_LENGTH_BYTES];
             int originalPosition = buffer.position();
             buffer.position(dataBytesProcessed);
@@ -171,7 +170,7 @@ public class SessionMessageReceiver {
             headerLength = headerLengthBuffer.getInt();
             Timber.d("Deserialized header length " + headerLength);
             gotHeaderLength = true;
-            dataBytesProcessed += 3;
+            dataBytesProcessed += SessionMessage.HEADER_LENGTH_BYTES;
         }
 
         /** Deserialize SessionMessage Header content, if not yet done since construction
@@ -213,7 +212,7 @@ public class SessionMessageReceiver {
          * received data we remove body data from the header memory buffer and insert it into the body
          * FileOutputStream. Must be performed before determining body completion.
          *
-         * Performed at most once per construction or call to {@link #reset()}
+         * Performed at most once per SessionMessage
          */
         if (!gotBodyBoundary && gotHeader && bodyLength > 0 && buffer.position() >=
                                                                            SessionMessage.HEADER_VERSION_BYTES +
@@ -254,7 +253,6 @@ public class SessionMessageReceiver {
 
             if (callback != null) {
                 try {
-
                     SessionMessage message = sessionMessageFromHeaderAndBody(headers, new FileInputStream(bodyFile));
                     if (callback != null) callback.onComplete(message, null);
                 } catch (FileNotFoundException e) {
