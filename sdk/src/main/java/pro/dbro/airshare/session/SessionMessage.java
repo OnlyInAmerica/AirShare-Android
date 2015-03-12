@@ -1,5 +1,6 @@
 package pro.dbro.airshare.session;
 
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import org.json.JSONObject;
@@ -17,14 +18,17 @@ import timber.log.Timber;
 /**
  * Represents a Session segment suitable for transport via a {@link pro.dbro.airshare.transport.Transport}
  *
- * Note: Headers are intended to be immutable and so {@link #populateHeaders()}
- * will only be called once across multiple serializations. Child classes must call
- * {@link #serializeAndCacheHeaders()} before {@link #serialize(int, int)} is invoked, ideally
- * within their constructors.
+ * Requirements of Child Classes:
+ *
+ * Constructors must call {@link #serializeAndCacheHeaders()}.
+ *
+ * Constructors must set {@link #status} to {@link Status#HEADER_ONLY} if appropriate
  *
  * Created by davidbrodsky on 2/22/15.
  */
 public abstract class SessionMessage {
+
+    public static enum Status { HEADER_ONLY, COMPLETE }
 
     /** SessionMessage version. Must be representable by {@link #HEADER_VERSION_BYTES} bytes */
     public static final int CURRENT_HEADER_VERSION = 1;
@@ -40,26 +44,31 @@ public abstract class SessionMessage {
     public static final String HEADER_BODY_LENGTH  = "body-length";
     public static final String HEADER_ID           = "id";
 
-    protected int                     version;
-    protected String                  type;
-    protected int                     bodyLengthBytes;
-    protected String                  id;
-    protected HashMap<String, Object> headers;
-    private   byte[]                  serializedHeaders;
+    protected int                              version;
+    protected @NonNull String                  type;
+    protected int                              bodyLengthBytes;
+    protected @NonNull String                  id;
+    protected @NonNull Status                  status;
+    protected @NonNull HashMap<String, Object> headers;
+    private   @NonNull byte[]                  serializedHeaders;
 
     /**
      * Construct a SessionMessage with a given id.
      * This constructor should be used for deserialization of
      * incoming SessionMessages.
      */
-    public SessionMessage(String id) {
-        type = getClass().getSimpleName();
+    public SessionMessage(@NonNull String id) {
+        this.id         = id;
+        type            = getClass().getSimpleName();
         bodyLengthBytes = 0;
-        version = CURRENT_HEADER_VERSION;
-        this.id = id;
+        version         = CURRENT_HEADER_VERSION;
+        status          = Status.COMPLETE;
 
-        // Child classes should call serializeAndCacheHeaders()
-        // in their constructors or else before serialize(..)
+        // Child classes must call serializeAndCacheHeaders()
+        // in their constructors
+
+        // Child classes must set status to Status.HEADER_ONLY if they
+        // are constructed without a body but expect one to become available
     }
 
     /**
@@ -84,19 +93,18 @@ public abstract class SessionMessage {
         return headerMap;
     }
 
-    public String getType() {
+    public @NonNull String getType() {
         return type;
     }
 
     /**
-     * @return the length of the serialized headers in bytes, or -1 if not
-     * yet known. See {@link #serializeAndCacheHeaders()}
+     * @return the length of the serialized headers
      */
     public int getHeaderLengthBytes() {
-        return serializedHeaders == null ? -1 : serializedHeaders.length;
+        return serializedHeaders.length;
     }
 
-    public HashMap<String, Object> getHeaders() {
+    public @NonNull HashMap<String, Object> getHeaders() {
         return headers;
     }
 
@@ -177,7 +185,7 @@ public abstract class SessionMessage {
             }
 
             // Write raw body if offset dictates
-            if (bytesWritten < length) {
+            if (bytesWritten < length && status == Status.COMPLETE) {
                 // If no non-body data was written and there is no body, return null
                 if (getBodyLengthBytes() == 0 && bytesWritten == 0)
                     return null;

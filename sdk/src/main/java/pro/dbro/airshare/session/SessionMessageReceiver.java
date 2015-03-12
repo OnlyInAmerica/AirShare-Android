@@ -44,9 +44,9 @@ public class SessionMessageReceiver {
 
     public static interface SessionMessageReceiverCallback {
 
-        public void onHeaderReady(HashMap<String, Object> header);
+        public void onHeaderReady(SessionMessage message);
 
-        public void onProgress(float progress);
+        public void onBodyProgress(SessionMessage message, float progress);
 
         public void onComplete(SessionMessage message, Exception e);
 
@@ -59,6 +59,7 @@ public class SessionMessageReceiver {
     private FileOutputStream               bodyStream;
     private HashMap<String, Object>        headers;
     private ByteBuffer                     headerLengthBuffer;
+    private SessionMessage                 sessionMessage;
 
     private boolean gotVersion;
     private boolean gotHeaderLength;
@@ -182,28 +183,25 @@ public class SessionMessageReceiver {
                                                                   SessionMessage.HEADER_LENGTH_BYTES +
                                                                   headerLength) {
 
-            // Deserialize Header
-            // Get body length from header
-            // If body is above some size, copy to FileOutputStream
-
-            // At this point, we can start reporting progress to callback
             byte[] headerString = new byte[headerLength];
             int originalBufferPosition = buffer.position();
             buffer.position(SessionMessage.HEADER_VERSION_BYTES + SessionMessage.HEADER_LENGTH_BYTES);
-            buffer.get(headerString,
-                       0,
-                       headerLength);
+            buffer.get(headerString, 0, headerLength);
             buffer.position(originalBufferPosition);
+
             try {
                 JSONObject jsonHeader = new JSONObject(new String(headerString, "UTF-8"));
                 headers = toMap(jsonHeader);
                 bodyLength = (int) headers.get(SessionMessage.HEADER_BODY_LENGTH);
+                sessionMessage = sessionMessageFromHeaders(headers);
                 Timber.d(String.format("Deserialized header of type %s with body length %d", (String) headers.get(SessionMessage.HEADER_TYPE), (int) headers.get(SessionMessage.HEADER_BODY_LENGTH)));
-                if (callback != null)
-                    callback.onHeaderReady(headers);
+                if (sessionMessage != null && callback != null)
+                    callback.onHeaderReady(sessionMessage);
             } catch (JSONException | UnsupportedEncodingException e) {
+                // TODO : We should reset or otherwise abort this message
                 e.printStackTrace();
             }
+
             gotHeader = true;
             dataBytesProcessed += headerLength;
         }
@@ -231,7 +229,7 @@ public class SessionMessageReceiver {
                 bodyStream.write(bodyBytes, 0, bodyBytesJustReceived);
 
                 if (callback != null && bodyLength > 0)
-                    callback.onProgress(bodyBytesReceived / (float) bodyLength);
+                    callback.onBodyProgress(sessionMessage, bodyBytesReceived / (float) bodyLength);
 
                 Timber.d(String.format("Splitting received data between header (%d bytes) and body (%d bytes)", dataBytesProcessed, bodyBytesJustReceived));
                 gotBodyBoundary = true;
@@ -253,16 +251,19 @@ public class SessionMessageReceiver {
                 e.printStackTrace();
             }
 
-            if (callback != null) {
+            if (sessionMessage instanceof FileTransferMessage) {
                 try {
-                    SessionMessage message = sessionMessageFromHeaderAndBody(headers, new FileInputStream(bodyFile));
-                    if (callback != null) callback.onComplete(message, null);
+                    ((FileTransferMessage) sessionMessage).setBody(new FileInputStream(bodyFile));
                 } catch (FileNotFoundException e) {
                     Timber.e(e, "Failed to get handle on body file for reading");
                     if (callback != null) callback.onComplete(null, e);
+                    e.printStackTrace();
                 }
             }
+
             gotBody = true;
+
+            if (callback != null) callback.onComplete(sessionMessage, null);
 
             // Prepare for next incoming message
             reset();
@@ -291,8 +292,7 @@ public class SessionMessageReceiver {
         buffer = newBuffer;
     }
 
-    private static @Nullable SessionMessage sessionMessageFromHeaderAndBody(HashMap<String, Object> headers,
-                                                                            FileInputStream body) {
+    private static @Nullable SessionMessage sessionMessageFromHeaders(HashMap<String, Object> headers) {
         if (!headers.containsKey(SessionMessage.HEADER_TYPE))
             throw new IllegalArgumentException("headers map must have 'type' entry");
 
@@ -304,10 +304,13 @@ public class SessionMessageReceiver {
             case FileTransferMessage.HEADER_TYPE_ACCEPT:
             case FileTransferMessage.HEADER_TYPE_OFFER:
             case FileTransferMessage.HEADER_TYPE_TRANSFER:
-                return new FileTransferMessage(headers, body);
+                return new FileTransferMessage(headers, null);
+
+            default:
+                Timber.w("Unable to deserialize %s message", headerType);
+                return null;
 
         }
-        return null;
     }
 
     // <editor-fold desc="JSON Utils">

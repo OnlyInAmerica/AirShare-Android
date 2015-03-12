@@ -66,7 +66,7 @@ public class IdentityMessage extends SessionMessage {
 
     @Override
     public byte[] getBodyAtOffset(int offset, int length) {
-        return new byte[0];
+        return null;
     }
 
     @Override

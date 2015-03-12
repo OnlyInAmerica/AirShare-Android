@@ -130,6 +130,7 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
                 break;
 
             case DISCONNECTED:
+                // We should maintain identification of disconnected peers in case their identifier re-appears
                 break;
         }
     }
@@ -139,13 +140,13 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
     // <editor-fold desc="SessionMessageReceiverCallback">
 
     @Override
-    public void onHeaderReady(HashMap<String, Object> header) {
-        Timber.d("Received header for %s message", header.get(SessionMessage.HEADER_TYPE));
+    public void onHeaderReady(SessionMessage message) {
+        Timber.d("Received header for %s message", message.getType());
     }
 
     @Override
-    public void onProgress(float progress) {
-        Timber.d("Received message with progress %f", progress);
+    public void onBodyProgress(SessionMessage message, float progress) {
+        Timber.d("Received %s message with progress %f", message.getType(), progress);
     }
 
     @Override

@@ -96,12 +96,12 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
                     new SessionMessageReceiver.SessionMessageReceiverCallback() {
 
                         @Override
-                        public void onHeaderReady(HashMap<String, Object> header) {
+                        public void onHeaderReady(SessionMessage message) {
                             //Timber.d("SessionMessage Header ready");
                         }
 
                         @Override
-                        public void onProgress(float progress) {
+                        public void onBodyProgress(SessionMessage message, float progress) {
                             //Timber.d("SessionMessage received progress " + progress);
                         }
 

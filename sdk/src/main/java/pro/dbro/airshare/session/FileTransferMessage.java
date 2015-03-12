@@ -58,7 +58,7 @@ public class FileTransferMessage extends SessionMessage {
     public static final String HEADER_TYPE_TRANSFER = "filetransfer";
 
     private @Nullable File file;
-    private @NonNull  BufferedInputStream inputStream;
+    private @Nullable BufferedInputStream inputStream;
     private @NonNull  TransferType transferType;
     private @NonNull  String filename;
 
@@ -70,8 +70,8 @@ public class FileTransferMessage extends SessionMessage {
     /**
      * Construct a FileTransferMessage from deserialized headers and body.
      */
-    public FileTransferMessage(HashMap<String, Object> headers,
-                               InputStream body) {
+    public FileTransferMessage(@NonNull HashMap<String, Object> headers,
+                               @Nullable InputStream body) {
 
         super((String) headers.get(SessionMessage.HEADER_ID));
 
@@ -101,7 +101,10 @@ public class FileTransferMessage extends SessionMessage {
         this.transferType = transferType;
         filename          = (String) headers.get(HEADER_FILENAME);
         bodyLengthBytes   = (int) headers.get(HEADER_BODY_LENGTH);
-        inputStream       = new BufferedInputStream(body);
+        status            = body == null ? Status.HEADER_ONLY : Status.COMPLETE;
+
+        if (body != null)
+            setBody(body);
 
         if (transferType != TransferType.TRANSFER)
             offerLengthBytes = (int) headers.get(HEADER_OFFER_LENGTH);
@@ -130,7 +133,7 @@ public class FileTransferMessage extends SessionMessage {
         else
             offerLengthBytes = (int) file.length();
 
-        inputStream = new BufferedInputStream(new FileInputStream(file));
+        setBody(new FileInputStream(file));
 
         init();
     }
@@ -149,22 +152,35 @@ public class FileTransferMessage extends SessionMessage {
         super();
         this.transferType = transferType;
         this.filename = filename;
-        this.inputStream = new BufferedInputStream(inputStream);
 
         if (transferType == TransferType.TRANSFER)
             bodyLengthBytes  = length;
         else
             offerLengthBytes = length;
 
+        setBody(inputStream);
 
         init();
     }
 
     // </editor-fold desc="Outgoing Constructors">
 
-    private void init() {
-        // TODO : On reflection we shouldn't be marking the stream with such a large limit. Maybe pick a small sane value?
+    // <editor-fold desc="Public API">
+
+    public void setBody(@NonNull InputStream body) {
+        if (inputStream != null)
+            throw new IllegalStateException("Attempted to set existing message body");
+
+        inputStream = new BufferedInputStream(body);
         inputStream.mark(bodyLengthBytes);
+        status = Status.COMPLETE;
+    }
+
+    // </editor-fold desc="Public API">
+
+    // <editor-fold desc="Private API">
+
+    private void init() {
         bodyBytesRead = 0;
 
         String type = null;
@@ -189,6 +205,8 @@ public class FileTransferMessage extends SessionMessage {
         this.type = type;
         serializeAndCacheHeaders();
     }
+
+    // </editor-fold desc="Private API">
 
     @Override
     protected HashMap<String, Object> populateHeaders() {
