@@ -208,13 +208,6 @@ public class FileTransferMessage extends SessionMessage {
     }
 
     @Override
-    public long getBodyLengthBytes() {
-        // Only the TRANSFER message actually includes the body
-        // OFFER and ACCEPT use bodyLengthBytes to populate the HEADER_OFFER_LENGTH header
-        return transferType == TransferType.TRANSFER ? bodyLengthBytes : 0;
-    }
-
-    @Override
     public @Nullable byte[] getBodyAtOffset(int offset, int length) {
         // NOTE : This method is written to be generic to a BufferedInputStream
         // for potential re-use as part of an abstract InputStreamMessage etc.
