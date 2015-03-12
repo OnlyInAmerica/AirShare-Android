@@ -5,6 +5,7 @@ import android.support.annotation.Nullable;
 import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Created by davidbrodsky on 2/21/15.
@@ -51,7 +52,7 @@ public abstract class Transport {
         return callback.get();
     }
 
-    public abstract boolean sendData(byte[] data, List<String> identifier);
+    public abstract boolean sendData(byte[] data, Set<String> identifier);
 
     public abstract boolean sendData(byte[] data, String identifier);
 
@@ -60,5 +61,10 @@ public abstract class Transport {
     public abstract void scanForPeers();
 
     public abstract void stop();
+
+    /**
+     * @return the Maximum Transmission Unit, in bytes, or 0 if unlimited.
+     */
+    public abstract int getMtuBytes();
 
 }

@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import pro.dbro.airshare.transport.Transport;
@@ -53,7 +54,6 @@ public class BLETransport extends Transport implements BLETransportCallback {
     private final UUID serviceUUID;
     private final UUID dataUUID    = UUID.fromString("72A7700C-859D-4317-9E35-D7F5A93005B1");
 
-    /** Identifier -> (data, readIdx) */
     private HashMap<String, ArrayDeque<ByteBuffer>> outBuffers = new HashMap<>();
     private ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<>();
 
@@ -101,7 +101,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
     // <editor-fold desc="Transport">
 
     @Override
-    public boolean sendData(byte[] data, List<String> identifiers) {
+    public boolean sendData(byte[] data, Set<String> identifiers) {
         boolean didSendAll = true;
 
         for (String identifier : identifiers) {
@@ -137,6 +137,11 @@ public class BLETransport extends Transport implements BLETransportCallback {
     public void stop() {
         if (peripheral.isAdvertising()) peripheral.stop();
         if (central.isScanning())       central.stop();
+    }
+
+    @Override
+    public int getMtuBytes() {
+        return MTU_BYTES;
     }
 
     // </editor-fold desc="Transport">

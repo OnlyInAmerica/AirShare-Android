@@ -39,8 +39,9 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
     private LocalPeer                               localPeer;
     private IdentityMessage                         localIdentityMessage;
     private SessionManagerCallback                  callback;
-    private HashMap<Peer, Set<Transport>>           peerTransports        = new HashMap<>();
+    private HashMap<String, Set<Transport>>         identifierTransports  = new HashMap<>();
     private BidiMap<String, SessionMessageReceiver> identifierReceivers   = new DualHashBidiMap<>();
+    private BidiMap<String, SessionMessageSender>   identifierSenders     = new DualHashBidiMap<>();
     private BidiMap<String, Peer>                   identifiedPeers       = new DualHashBidiMap<>();
     private Set<String>                             identifyingPeers      = new HashSet<>();
 
@@ -70,13 +71,22 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
             transport.scanForPeers();
     }
 
-    public void sendSessionMessage(SessionMessage message, Peer recipient) {
+    public void sendMessage(SessionMessage message, Peer recipient) {
+
+        String recipientIdentifier = identifiedPeers.getKey(recipient);
         Transport transport = getPreferredTransportForPeer(recipient);
 
-        if (transport != null) {
-            // Need SessionMessage Sender object that serializes MTU chunks
-            // and awaits notification of reception
-        }
+        if (!identifierSenders.containsKey(recipientIdentifier))
+            identifierSenders.put(recipientIdentifier, new SessionMessageSender(message));
+        else
+            identifierSenders.get(recipientIdentifier).queueMessage(message);
+
+        SessionMessageSender sender = identifierSenders.get(recipientIdentifier);
+
+        if (transport != null)
+            transport.sendData(sender.readNextChunk(transport.getMtuBytes()), recipientIdentifier);
+
+        // If the peer is not currently available, data will be sent next time peer is available
     }
 
     // </editor-fold desc="Public API">
@@ -90,7 +100,9 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
 
     private @Nullable Transport getPreferredTransportForPeer(Peer peer) {
         // TODO : Provide Transport preference order. Perhaps each Transport has a unique int preference score
-        return peerTransports.get(peer)
+        if (!identifiedPeers.containsValue(peer)) return null;
+
+        return identifierTransports.get(identifiedPeers.getKey(peer))
                              .iterator()
                              .next();
     }
@@ -116,8 +128,27 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
 
     @Override
     public void dataSentToIdentifier(Transport transport, byte[] data, String identifier) {
-        // TODO Need a lightweight SessionMessageReceiver that monitors when a message is completely accumulated,
-        // TODO but doesn't save accumulating data.
+
+        SessionMessageSender sender = identifierSenders.get(identifier);
+
+        if (sender != null && sender.getCurrentMessage() != null) {
+
+            if (sender.getCurrentMessageProgress() == 1) {
+
+                callback.messageSentToPeer(sender.getCurrentMessage(),
+                                           identifiedPeers.get(identifier),
+                                           null);
+
+            } else {
+
+                callback.messageSendingToPeer(sender.getCurrentMessage(),
+                        identifiedPeers.get(identifier),
+                        sender.getCurrentMessageProgress());
+            }
+
+
+            transport.sendData(sender.readNextChunk(transport.getMtuBytes()), identifier);
+        }
     }
 
     @Override
@@ -128,14 +159,37 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
         switch(status) {
             case CONNECTED:
                 if (shouldIdentifyPeer(identifier)) {
-                    if(transport.sendData(localIdentityMessage.serialize(), identifier))
-                        identifyingPeers.add(identifier);
-                    else Timber.w("Failed to send Identity to new peer " + identifier);
+
+                    if (!identifierSenders.containsKey(identifier))
+                        identifierSenders.put(identifier, new SessionMessageSender(localIdentityMessage));
+                    else
+                        Timber.w("Outgoing messages already exist for unidentified peer %s", identifier);
                 }
+
+                if (!identifierTransports.containsKey(identifier))
+                    identifierTransports.put(identifier, new HashSet<Transport>());
+
+                identifierTransports.get(identifier).add(transport);
+
+                // Send outgoing messages to peer
+                SessionMessageSender sender = identifierSenders.get(identifier);
+
+                if (sender.getCurrentMessage() != null) {
+
+                    boolean sendingIdentity = sender.getCurrentMessage() instanceof IdentityMessage;
+
+                    if (transport.sendData(sender.readNextChunk(transport.getMtuBytes()), identifier))
+                        if (sendingIdentity) identifyingPeers.add(identifier);
+                        else Timber.w("Failed to send %s message to new peer %s",
+                                sender.getCurrentMessage().getType(),
+                                identifier);
+                }
+
                 break;
 
             case DISCONNECTED:
-                // We should maintain identification of disconnected peers in case their identifier re-appears
+                // We should maintain (in memory) identifiedPeers and identifierTransports
+                // in case an identifier re-appears shortly
                 if (identifiedPeers.containsKey(identifier))
                     callback.peerStatusUpdated(identifiedPeers.get(identifier), Transport.ConnectionStatus.DISCONNECTED);
                 break;
@@ -171,11 +225,12 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
 
             if (message instanceof IdentityMessage) {
 
-                identifyingPeers.remove(senderIdentifier);
-                identifiedPeers.put(senderIdentifier, ((IdentityMessage) message).getPeer());
+                Peer peer = ((IdentityMessage) message).getPeer();
 
-                callback.peerStatusUpdated(((IdentityMessage) message).getPeer(),
-                                           Transport.ConnectionStatus.CONNECTED);
+                identifyingPeers.remove(senderIdentifier);
+                identifiedPeers.put(senderIdentifier, peer);
+
+                callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED);
 
             } else if (identifiedPeers.containsKey(senderIdentifier)) {
 
