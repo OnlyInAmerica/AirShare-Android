@@ -103,8 +103,8 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
         if (!identifiedPeers.containsValue(peer)) return null;
 
         return identifierTransports.get(identifiedPeers.getKey(peer))
-                             .iterator()
-                             .next();
+                                   .iterator()
+                                   .next();
     }
 
     private boolean shouldIdentifyPeer(String identifier) {
@@ -122,7 +122,7 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
             identifierReceivers.put(identifier, new SessionMessageReceiver(context, this));
 
         identifierReceivers.get(identifier)
-                     .dataReceived(data);
+                           .dataReceived(data);
 
     }
 
@@ -142,8 +142,8 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
             } else {
 
                 callback.messageSendingToPeer(sender.getCurrentMessage(),
-                        identifiedPeers.get(identifier),
-                        sender.getCurrentMessageProgress());
+                                              identifiedPeers.get(identifier),
+                                              sender.getCurrentMessageProgress());
             }
 
 
@@ -181,8 +181,8 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
                     if (transport.sendData(sender.readNextChunk(transport.getMtuBytes()), identifier))
                         if (sendingIdentity) identifyingPeers.add(identifier);
                         else Timber.w("Failed to send %s message to new peer %s",
-                                sender.getCurrentMessage().getType(),
-                                identifier);
+                                      sender.getCurrentMessage().getType(),
+                                      identifier);
                 }
 
                 break;
