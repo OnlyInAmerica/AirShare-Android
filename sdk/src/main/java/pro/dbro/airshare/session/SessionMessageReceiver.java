@@ -44,11 +44,11 @@ public class SessionMessageReceiver {
 
     public static interface SessionMessageReceiverCallback {
 
-        public void onHeaderReady(SessionMessage message);
+        public void onHeaderReady(SessionMessageReceiver receiver, SessionMessage message);
 
-        public void onBodyProgress(SessionMessage message, float progress);
+        public void onBodyProgress(SessionMessageReceiver receiver, SessionMessage message, float progress);
 
-        public void onComplete(SessionMessage message, Exception e);
+        public void onComplete(SessionMessageReceiver receiver, SessionMessage message, Exception e);
 
     }
 
@@ -146,7 +146,7 @@ public class SessionMessageReceiver {
             if (version != SessionMessage.CURRENT_HEADER_VERSION) {
                 Timber.e("Unknown SessionMessage version");
                 if (callback != null)
-                    callback.onComplete(null, new UnsupportedOperationException("Unknown SessionMessage version"));
+                    callback.onComplete(this, null, new UnsupportedOperationException("Unknown SessionMessage version"));
                 return;
             }
             dataBytesProcessed += SessionMessage.HEADER_VERSION_BYTES;
@@ -196,7 +196,7 @@ public class SessionMessageReceiver {
                 sessionMessage = sessionMessageFromHeaders(headers);
                 Timber.d(String.format("Deserialized header of type %s with body length %d", (String) headers.get(SessionMessage.HEADER_TYPE), (int) headers.get(SessionMessage.HEADER_BODY_LENGTH)));
                 if (sessionMessage != null && callback != null)
-                    callback.onHeaderReady(sessionMessage);
+                    callback.onHeaderReady(this, sessionMessage);
             } catch (JSONException | UnsupportedEncodingException e) {
                 // TODO : We should reset or otherwise abort this message
                 e.printStackTrace();
@@ -229,7 +229,7 @@ public class SessionMessageReceiver {
                 bodyStream.write(bodyBytes, 0, bodyBytesJustReceived);
 
                 if (callback != null && bodyLength > 0)
-                    callback.onBodyProgress(sessionMessage, bodyBytesReceived / (float) bodyLength);
+                    callback.onBodyProgress(this, sessionMessage, bodyBytesReceived / (float) bodyLength);
 
                 Timber.d(String.format("Splitting received data between header (%d bytes) and body (%d bytes)", dataBytesProcessed, bodyBytesJustReceived));
                 gotBodyBoundary = true;
@@ -247,23 +247,19 @@ public class SessionMessageReceiver {
             // Construct appropriate SessionMessage or child object
             try {
                 bodyStream.close();
+
+                if (sessionMessage instanceof FileTransferMessage)
+                    ((FileTransferMessage) sessionMessage).setBody(new FileInputStream(bodyFile));
+
+                if (callback != null) callback.onComplete(this, sessionMessage, null);
+
             } catch (IOException e) {
+                Timber.e(e, "Failed to open body file");
+                if (callback != null) callback.onComplete(this, null, e);
                 e.printStackTrace();
             }
 
-            if (sessionMessage instanceof FileTransferMessage) {
-                try {
-                    ((FileTransferMessage) sessionMessage).setBody(new FileInputStream(bodyFile));
-                } catch (FileNotFoundException e) {
-                    Timber.e(e, "Failed to get handle on body file for reading");
-                    if (callback != null) callback.onComplete(null, e);
-                    e.printStackTrace();
-                }
-            }
-
             gotBody = true;
-
-            if (callback != null) callback.onComplete(sessionMessage, null);
 
             // Prepare for next incoming message
             reset();

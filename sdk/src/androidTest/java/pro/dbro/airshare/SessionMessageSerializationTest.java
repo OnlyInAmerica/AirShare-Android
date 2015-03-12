@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -96,17 +95,17 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
                     new SessionMessageReceiver.SessionMessageReceiverCallback() {
 
                         @Override
-                        public void onHeaderReady(SessionMessage message) {
+                        public void onHeaderReady(SessionMessageReceiver receiver, SessionMessage message) {
                             //Timber.d("SessionMessage Header ready");
                         }
 
                         @Override
-                        public void onBodyProgress(SessionMessage message, float progress) {
+                        public void onBodyProgress(SessionMessageReceiver receiver, SessionMessage message, float progress) {
                             //Timber.d("SessionMessage received progress " + progress);
                         }
 
                         @Override
-                        public void onComplete(SessionMessage deserializedMessage, Exception e) {
+                        public void onComplete(SessionMessageReceiver receiver, SessionMessage deserializedMessage, Exception e) {
                             Timber.d("Deserialized Message " + originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE));
 
                             assertEquals(originalMessage, deserializedMessage);

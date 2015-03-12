@@ -19,7 +19,7 @@ public class IdentityMessage extends SessionMessage {
     public static final String HEADER_PUBKEY = "pubkey";
     public static final String HEADER_ALIAS  = "alias";
 
-    private Peer localPeer;
+    private Peer peer;
 
     /**
      * Convenience creator for deserialization
@@ -32,16 +32,16 @@ public class IdentityMessage extends SessionMessage {
         return new IdentityMessage((String) headers.get(SessionMessage.HEADER_ID), peer);
     }
 
-    public IdentityMessage(String id, Peer localPeer) {
+    public IdentityMessage(String id, Peer peer) {
         super(id);
-        this.localPeer = localPeer;
+        this.peer = peer;
         init();
         serializeAndCacheHeaders();
     }
 
-    public IdentityMessage(Peer localPeer) {
+    public IdentityMessage(Peer peer) {
         super();
-        this.localPeer = localPeer;
+        this.peer = peer;
         init();
         serializeAndCacheHeaders();
     }
@@ -51,15 +51,15 @@ public class IdentityMessage extends SessionMessage {
     }
 
     public Peer getPeer() {
-        return localPeer;
+        return peer;
     }
 
     @Override
     protected HashMap<String, Object> populateHeaders() {
         HashMap<String, Object> headerMap = super.populateHeaders();
 
-        headerMap.put(HEADER_ALIAS,  localPeer.getAlias());
-        headerMap.put(HEADER_PUBKEY, DataUtil.bytesToHex(localPeer.getPublicKey()));
+        headerMap.put(HEADER_ALIAS, peer.getAlias());
+        headerMap.put(HEADER_PUBKEY, DataUtil.bytesToHex(peer.getPublicKey()));
 
         return headerMap;
     }

@@ -40,7 +40,7 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
     private IdentityMessage                         localIdentityMessage;
     private SessionManagerCallback                  callback;
     private HashMap<Peer, Set<Transport>>           peerTransports        = new HashMap<>();
-    private BidiMap<String, SessionMessageReceiver> peerReceivers         = new DualHashBidiMap<>();
+    private BidiMap<String, SessionMessageReceiver> identifierReceivers   = new DualHashBidiMap<>();
     private BidiMap<String, Peer>                   identifiedPeers       = new DualHashBidiMap<>();
     private Set<String>                             identifyingPeers      = new HashSet<>();
 
@@ -71,7 +71,12 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
     }
 
     public void sendSessionMessage(SessionMessage message, Peer recipient) {
+        Transport transport = getPreferredTransportForPeer(recipient);
 
+        if (transport != null) {
+            // Need SessionMessage Sender object that serializes MTU chunks
+            // and awaits notification of reception
+        }
     }
 
     // </editor-fold desc="Public API">
@@ -101,10 +106,10 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
     @Override
     public void dataReceivedFromIdentifier(Transport transport, byte[] data, String identifier) {
 
-        if (!peerReceivers.containsKey(identifier))
-            peerReceivers.put(identifier, new SessionMessageReceiver(context, this));
+        if (!identifierReceivers.containsKey(identifier))
+            identifierReceivers.put(identifier, new SessionMessageReceiver(context, this));
 
-        peerReceivers.get(identifier)
+        identifierReceivers.get(identifier)
                      .dataReceived(data);
 
     }
@@ -131,6 +136,8 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
 
             case DISCONNECTED:
                 // We should maintain identification of disconnected peers in case their identifier re-appears
+                if (identifiedPeers.containsKey(identifier))
+                    callback.peerStatusUpdated(identifiedPeers.get(identifier), Transport.ConnectionStatus.DISCONNECTED);
                 break;
         }
     }
@@ -140,21 +147,47 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
     // <editor-fold desc="SessionMessageReceiverCallback">
 
     @Override
-    public void onHeaderReady(SessionMessage message) {
-        Timber.d("Received header for %s message", message.getType());
+    public void onHeaderReady(SessionMessageReceiver receiver, SessionMessage message) {
+
+        String senderIdentifier = identifierReceivers.getKey(receiver);
+        Timber.d("Received header for %s message from %s", message.getType(), senderIdentifier);
     }
 
     @Override
-    public void onBodyProgress(SessionMessage message, float progress) {
-        Timber.d("Received %s message with progress %f", message.getType(), progress);
+    public void onBodyProgress(SessionMessageReceiver receiver, SessionMessage message, float progress) {
+
+        String senderIdentifier = identifierReceivers.getKey(receiver);
+        Timber.d("Received %s message with progress %f from %s", message.getType(), progress, senderIdentifier);
     }
 
     @Override
-    public void onComplete(SessionMessage message, Exception e) {
+    public void onComplete(SessionMessageReceiver receiver, SessionMessage message, Exception e) {
+
+        String senderIdentifier = identifierReceivers.getKey(receiver);
+
         if (e == null) {
-            Timber.d("Received complete %s message", message.getType());
+
+            Timber.d("Received complete %s message from %s", message.getType(), senderIdentifier);
+
+            if (message instanceof IdentityMessage) {
+
+                identifyingPeers.remove(senderIdentifier);
+                identifiedPeers.put(senderIdentifier, ((IdentityMessage) message).getPeer());
+
+                callback.peerStatusUpdated(((IdentityMessage) message).getPeer(),
+                                           Transport.ConnectionStatus.CONNECTED);
+
+            } else if (identifiedPeers.containsKey(senderIdentifier)) {
+
+                callback.messageReceivedFromPeer(message, identifiedPeers.get(senderIdentifier));
+
+            } else {
+
+                Timber.w("Received complete non-identity message from unidentified peer");
+            }
+
         } else {
-            Timber.d("Incoming message failed with error " + e.getLocalizedMessage());
+            Timber.d("Incoming message from %s failed with error '%s'", senderIdentifier, e.getLocalizedMessage());
             e.printStackTrace();
         }
 
