@@ -202,8 +202,6 @@ public class FileTransferMessage extends SessionMessage {
             headerMap.put(HEADER_OFFER_LENGTH, offerLengthBytes);
         }
 
-//        headerMap.put("resumeoffset", 439439);
-
         return headerMap;
     }
 
@@ -255,10 +253,18 @@ public class FileTransferMessage extends SessionMessage {
     @Override
     public int hashCode() {
         HashMap headers = getHeaders();
-        return Objects.hash(headers.get(HEADER_TYPE),
-                            headers.get(HEADER_BODY_LENGTH),
-                            headers.get(HEADER_ID),
-                            headers.get(HEADER_FILENAME));
+        if (this.transferType != TransferType.TRANSFER) {
+            return Objects.hash(headers.get(HEADER_TYPE),
+                                headers.get(HEADER_BODY_LENGTH),
+                                headers.get(HEADER_ID),
+                                headers.get(HEADER_FILENAME),
+                                headers.get(HEADER_OFFER_LENGTH));
+        } else {
+            return Objects.hash(headers.get(HEADER_TYPE),
+                                headers.get(HEADER_BODY_LENGTH),
+                                headers.get(HEADER_ID),
+                                headers.get(HEADER_FILENAME));
+        }
     }
 
     @Override
@@ -273,7 +279,7 @@ public class FileTransferMessage extends SessionMessage {
 
             boolean result = super.equals(other) &&
                     Objects.equals(getHeaders().get(HEADER_FILENAME),
-                            other.getHeaders().get(HEADER_FILENAME)) &&
+                                   other.getHeaders().get(HEADER_FILENAME)) &&
                     transferType == other.transferType;
 
             if (this.transferType != TransferType.TRANSFER) {
