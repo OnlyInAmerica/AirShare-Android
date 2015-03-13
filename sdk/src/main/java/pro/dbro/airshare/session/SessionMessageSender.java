@@ -7,6 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * This class facilitates queuing {@link pro.dbro.airshare.session.SessionMessage}s
+ * for sequential serialization
+ *
  * Created by davidbrodsky on 3/12/15.
  */
 public class SessionMessageSender {

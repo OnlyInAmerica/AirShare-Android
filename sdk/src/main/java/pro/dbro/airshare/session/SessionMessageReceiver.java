@@ -123,8 +123,11 @@ public class SessionMessageReceiver {
              */
             if (gotHeaderLength && buffer.position() == SessionMessage.HEADER_VERSION_BYTES +
                                                         SessionMessage.HEADER_LENGTH_BYTES + headerLength) {
-                    bodyBytesReceived += data.length;
-                    bodyStream.write(data);
+                bodyBytesReceived += data.length;
+                bodyStream.write(data);
+
+                if (callback != null && bodyLength > 0)
+                    callback.onBodyProgress(this, sessionMessage, bodyBytesReceived / (float) bodyLength);
             }
             else {
                 buffer.put(data);

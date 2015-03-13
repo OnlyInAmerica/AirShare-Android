@@ -134,7 +134,7 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
 
                     @Override
                     public void onBodyProgress(SessionMessageReceiver receiver, SessionMessage message, float progress) {
-                        Timber.d("SessionMessage received progress " + progress);
+                        //Timber.d("SessionMessage received progress " + progress);
                         assertTrue(lastProgress.get() <= progress);
                         lastProgress.set(progress);
                     }
