@@ -89,6 +89,11 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
         // If the peer is not currently available, data will be sent next time peer is available
     }
 
+    public void stop() {
+        for (Transport transport : transports)
+            transport.stop();
+    }
+
     // </editor-fold desc="Public API">
 
     // <editor-fold desc="Private API">
