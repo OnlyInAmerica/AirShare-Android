@@ -21,7 +21,8 @@ import pro.dbro.airshare.transport.ble.BLETransport;
 import timber.log.Timber;
 
 /**
- * Tests the serialization and deserialization of {@link pro.dbro.airshare.session.SessionMessage}s
+ * Tests the serialization of {@link pro.dbro.airshare.session.SessionMessage}s
+ * as well as their deserialization using {@link pro.dbro.airshare.session.SessionMessageReceiver}
  */
 public class SessionMessageSerializationTest extends ApplicationTestCase<Application> {
 
@@ -84,9 +85,9 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
 
         for (final SessionMessage originalMessage : messages) {
 
-            Timber.d(String.format("Serialized Message %s is %d bytes",
-                                   originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE),
-                                   originalMessage.getTotalLengthBytes()));
+            Timber.d("Serialized Message %s is %d bytes",
+                     originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE),
+                     originalMessage.getTotalLengthBytes());
 
             isComplete.set(false);
 
@@ -129,9 +130,9 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
 
             receiver.reset();
 
-            Timber.d(String.format("'%s' message sent %d bytes to receiver",
+            Timber.d("'%s' message sent %d bytes to receiver",
                     originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE),
-                    readIdx));
+                    readIdx);
 
             assertTrue(String.format("'%s' message was not deserialized",
                                      originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE)),
