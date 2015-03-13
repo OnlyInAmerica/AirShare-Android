@@ -1,6 +1,7 @@
 package pro.dbro.airshare.session;
 
 import android.content.Context;
+import android.provider.ContactsContract;
 import android.support.annotation.Nullable;
 
 import org.json.JSONArray;
@@ -12,6 +13,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -56,7 +58,7 @@ public class SessionMessageReceiver {
     private ByteBuffer                     buffer;
     private SessionMessageReceiverCallback callback;
     private File                           bodyFile;
-    private FileOutputStream               bodyStream;
+    private OutputStream                   bodyStream;
     private HashMap<String, Object>        headers;
     private ByteBuffer                     headerLengthBuffer;
     private SessionMessage                 sessionMessage;
@@ -98,7 +100,13 @@ public class SessionMessageReceiver {
         bodyBytesReceived = 0;
 
         buffer.clear();
-        init();
+
+        bodyFile = null;
+
+        if (bodyStream != null) {
+            try { bodyStream.close(); } catch (IOException e) { e.printStackTrace(); }
+            bodyStream = null;
+        }
     }
 
     /**
@@ -116,15 +124,21 @@ public class SessionMessageReceiver {
 
         try {
 
-            /** Write incoming data to memory buffer if accumulated bytes received (since contruction
-             * or call to {@link #reset()}) indicates we are still receiving the SessionMessage header
-             * metadata or body. If accumulated bytes received indicates we are receiving body,
-             * write to body FileOutputStream
+            /** Write incoming data to memory buffer if accumulated bytes received (since construction
+             * or call to {@link #reset()}) indicates we are still receiving the SessionMessage prefix
+             * or header. If accumulated bytes received indicates we are receiving body, write to body OutputStream
              */
-            if (gotHeaderLength && buffer.position() == SessionMessage.HEADER_VERSION_BYTES +
-                                                        SessionMessage.HEADER_LENGTH_BYTES + headerLength) {
+            if (gotHeaderLength && buffer.position() >= getPrefixAndHeaderLengthBytes()) {
+
+                if (sessionMessage.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
+
+                    if (bodyStream == null) prepareBodyOutputStream();
+
+                    bodyStream.write(data);
+                } else
+                    buffer.put(data);
+
                 bodyBytesReceived += data.length;
-                bodyStream.write(data);
 
                 if (callback != null && bodyLength > 0)
                     callback.onBodyProgress(this, sessionMessage, bodyBytesReceived / (float) bodyLength);
@@ -159,8 +173,8 @@ public class SessionMessageReceiver {
         /** Deserialize SessionMessage Header length bytes, if not yet done since construction
          * or last call to {@link #reset()}
          */
-        if (!gotHeaderLength && buffer.position() >=
-            SessionMessage.HEADER_VERSION_BYTES + SessionMessage.HEADER_LENGTH_BYTES) {
+        if (!gotHeaderLength && buffer.position() >= SessionMessage.HEADER_VERSION_BYTES +
+                                                     SessionMessage.HEADER_LENGTH_BYTES) {
 
             // Get header length and store. Deserialize header when possible
             byte[] headerLengthBytes = new byte[SessionMessage.HEADER_LENGTH_BYTES];
@@ -182,9 +196,7 @@ public class SessionMessageReceiver {
         /** Deserialize SessionMessage Header content, if not yet done since construction
          * or last call to {@link #reset()}
          */
-        if (!gotHeader && gotHeaderLength && buffer.position() >= SessionMessage.HEADER_VERSION_BYTES +
-                                                                  SessionMessage.HEADER_LENGTH_BYTES +
-                                                                  headerLength) {
+        if (!gotHeader && gotHeaderLength && buffer.position() >= getPrefixAndHeaderLengthBytes()) {
 
             byte[] headerString = new byte[headerLength];
             int originalBufferPosition = buffer.position();
@@ -197,7 +209,7 @@ public class SessionMessageReceiver {
                 headers = toMap(jsonHeader);
                 bodyLength = (int) headers.get(SessionMessage.HEADER_BODY_LENGTH);
                 sessionMessage = sessionMessageFromHeaders(headers);
-                Timber.d(String.format("Deserialized header of type %s with body length %d", (String) headers.get(SessionMessage.HEADER_TYPE), (int) headers.get(SessionMessage.HEADER_BODY_LENGTH)));
+                Timber.d(String.format("Deserialized %s header indicating body length %d", (String) headers.get(SessionMessage.HEADER_TYPE), (int) headers.get(SessionMessage.HEADER_BODY_LENGTH)));
                 if (sessionMessage != null && callback != null)
                     callback.onHeaderReady(this, sessionMessage);
             } catch (JSONException | UnsupportedEncodingException e) {
@@ -211,32 +223,39 @@ public class SessionMessageReceiver {
 //        else if (!gotHeader)
 //            Timber.d(String.format("Got %d / %d header bytes", buffer.position(), SessionMessage.HEADER_VERSION_BYTES + SessionMessage.HEADER_LENGTH_BYTES + headerLength));
 
-        /** Ensure that if the boundary between header content and body content occurred within this
-         * received data we remove body data from the header memory buffer and insert it into the body
-         * FileOutputStream. Must be performed before determining body completion.
+        /** If the boundary between header content and body content occurred within {@link data},
+         * update {@link #bodyBytesReceived} appropriately. Additionally, if this SessionMessage
+         * requires off-memory body storage we remove body data from {@link buffer} and insert it into
+         * the {@link bodyStream}. Must be performed before determining body completion.
          *
          * Performed at most once per SessionMessage
          */
-        if (!gotBodyBoundary && gotHeader && bodyLength > 0 && buffer.position() >=
-                                                                           SessionMessage.HEADER_VERSION_BYTES +
-                                                                           SessionMessage.HEADER_LENGTH_BYTES +
-                                                                           headerLength) {
+        if (!gotBodyBoundary &&
+            gotHeader        &&
+            bodyLength > 0   &&
+            buffer.position() >= getPrefixAndHeaderLengthBytes()) {
 
             try {
                 int bodyBytesJustReceived = data.length - dataBytesProcessed;
-                byte[] bodyBytes = new byte[bodyBytesJustReceived];
-                buffer.position(buffer.position() - bodyBytesJustReceived);
-                buffer.get(bodyBytes, 0, bodyBytesJustReceived);
-                buffer.position(buffer.position() - bodyBytesJustReceived);
+
+                if (sessionMessage instanceof FileTransferMessage) {
+
+                    if (bodyStream == null) prepareBodyOutputStream();
+
+                    byte[] bodyBytes = new byte[bodyBytesJustReceived];
+                    buffer.position(buffer.position() - bodyBytesJustReceived);
+                    buffer.get(bodyBytes, 0, bodyBytesJustReceived);
+                    buffer.position(buffer.position() - bodyBytesJustReceived);
+                    bodyStream.write(bodyBytes, 0, bodyBytesJustReceived);
+                }
+
                 bodyBytesReceived += bodyBytesJustReceived;
-                bodyStream.write(bodyBytes, 0, bodyBytesJustReceived);
 
                 if (callback != null && bodyLength > 0)
                     callback.onBodyProgress(this, sessionMessage, bodyBytesReceived / (float) bodyLength);
 
                 Timber.d(String.format("Splitting received data between header (%d bytes) and body (%d bytes)", dataBytesProcessed, bodyBytesJustReceived));
                 gotBodyBoundary = true;
-
 
             } catch (IOException e) {
                 Timber.d(e, "IOException");
@@ -249,10 +268,16 @@ public class SessionMessageReceiver {
             Timber.d("Got body!");
             // Construct appropriate SessionMessage or child object
             try {
-                bodyStream.close();
 
-                if (sessionMessage instanceof FileTransferMessage)
+                if (sessionMessage.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
                     ((FileTransferMessage) sessionMessage).setBody(new FileInputStream(bodyFile));
+
+                } else if (sessionMessage instanceof DataTransferMessage) {
+                    byte[] body = new byte[bodyLength];
+                    buffer.position(getPrefixAndHeaderLengthBytes());
+                    buffer.get(body, 0, bodyLength);
+                    ((DataTransferMessage) sessionMessage).setBody(body);
+                }
 
                 if (callback != null) callback.onComplete(this, sessionMessage, null);
 
@@ -273,6 +298,16 @@ public class SessionMessageReceiver {
     }
 
     private void init() {
+        headerLengthBuffer = ByteBuffer.allocate(Integer.SIZE / 8).order(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    private void resizeBuffer(int minLength) {
+        ByteBuffer newBuffer = ByteBuffer.allocate(Math.max(minLength, (int) (buffer.capacity() * 1.5)));
+        newBuffer.put(buffer);
+        buffer = newBuffer;
+    }
+
+    private void prepareBodyOutputStream() {
         bodyFile = new File(context.getExternalFilesDir(null), UUID.randomUUID().toString().replace("-","") + ".body");
         try {
             bodyStream = new FileOutputStream(bodyFile);
@@ -281,14 +316,14 @@ public class SessionMessageReceiver {
             Timber.e(e, msg);
             throw new IllegalArgumentException(msg);
         }
-
-        headerLengthBuffer = ByteBuffer.allocate(Integer.SIZE / 8).order(ByteOrder.LITTLE_ENDIAN);
     }
 
-    private void resizeBuffer(int minLength) {
-        ByteBuffer newBuffer = ByteBuffer.allocate(Math.max(minLength, (int) (buffer.capacity() * 1.5)));
-        newBuffer.put(buffer);
-        buffer = newBuffer;
+    /**
+     * @return the number of bytes which the prefix and header occupy
+     * This method only returns a valid value if {@link #gotHeaderLength} is {@code true}
+     */
+    private int getPrefixAndHeaderLengthBytes() {
+        return SessionMessage.HEADER_VERSION_BYTES + SessionMessage.HEADER_LENGTH_BYTES + headerLength;
     }
 
     private static @Nullable SessionMessage sessionMessageFromHeaders(HashMap<String, Object> headers) {
@@ -304,6 +339,9 @@ public class SessionMessageReceiver {
             case FileTransferMessage.HEADER_TYPE_OFFER:
             case FileTransferMessage.HEADER_TYPE_TRANSFER:
                 return new FileTransferMessage(headers, null);
+
+            case DataTransferMessage.HEADER_TYPE:
+                return new DataTransferMessage(headers, null);
 
             default:
                 Timber.w("Unable to deserialize %s message", headerType);
