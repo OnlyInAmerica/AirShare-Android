@@ -1,4 +1,4 @@
-package pro.dbro.airshare;
+package pro.dbro.airshare.session;
 
 import android.app.Application;
 import android.content.res.AssetFileDescriptor;
@@ -16,11 +16,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import pro.dbro.airshare.crypto.KeyPair;
 import pro.dbro.airshare.crypto.SodiumShaker;
-import pro.dbro.airshare.session.FileTransferMessage;
-import pro.dbro.airshare.session.IdentityMessage;
-import pro.dbro.airshare.session.SessionMessage;
-import pro.dbro.airshare.session.SessionMessageReceiver;
-import pro.dbro.airshare.session.SessionMessageSender;
 import pro.dbro.airshare.transport.ble.BLETransport;
 import timber.log.Timber;
 
@@ -45,6 +40,7 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
         messages = new ArrayList<>();
 
         initializeIdentityMessage(messages);
+        initializeDataTransferMessage(messages);
         initializeFileTransferMessages(messages);
     }
 
@@ -57,6 +53,17 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
                                             -20);       // rssi
 
         messages.add(new IdentityMessage(localPeer));
+    }
+
+    private void initializeDataTransferMessage(List<SessionMessage> messages) {
+
+        byte[] payload = ("And the end of all our exploring\n"   +
+                          "Will be to arrive where we started\n" +
+                          "And know the place for the first time.").getBytes();
+
+        DataTransferMessage dataTransferMessage = new DataTransferMessage(payload);
+
+        messages.add(dataTransferMessage);
     }
 
     private void initializeFileTransferMessages(List<SessionMessage> messages) throws IOException {
@@ -87,7 +94,11 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
         if (first.getHeaderLengthBytes() != second.getHeaderLengthBytes()) return false;
 
         final int BUFFER_SIZE_BYTES = 50 * 1024;
-        int readIdx = first.getHeaderLengthBytes(); // skip the header
+        int startIdx = first.getHeaderLengthBytes() +
+                       SessionMessage.HEADER_LENGTH_BYTES +
+                       SessionMessage.HEADER_VERSION_BYTES;
+
+        int readIdx = startIdx;
         while(true) {
             byte[] thisChunk = first.serialize(readIdx, BUFFER_SIZE_BYTES);
             byte[] otherChunk = second.serialize(readIdx, BUFFER_SIZE_BYTES);
@@ -105,10 +116,11 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
                 return false; // Payload chunk differed
             }
 
-            readIdx += BUFFER_SIZE_BYTES;
+            readIdx += thisChunk.length;
         }
 
-        Timber.d("Compared " + (readIdx - first.getHeaderLengthBytes()) + " body bytes successfully");
+        if (readIdx - startIdx > 0)
+            Timber.d("Compared " + (readIdx - startIdx) + " body bytes successfully");
         return true;
     }
 

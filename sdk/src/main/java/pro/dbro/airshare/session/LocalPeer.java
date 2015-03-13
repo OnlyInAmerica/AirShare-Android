@@ -1,6 +1,8 @@
-package pro.dbro.airshare;
+package pro.dbro.airshare.session;
 
 import java.util.Date;
+
+import pro.dbro.airshare.session.Peer;
 
 /**
  * Created by davidbrodsky on 2/21/15.
