@@ -244,12 +244,16 @@ public class FileTransferMessage extends SessionMessage {
                 } else if (offset < bodyBytesRead) {
                     bytesSkippedRequested = offset;
                     inputStream.reset();
+                    bodyBytesRead = 0;
                 }
 
                 bytesSkippedActual = inputStream.skip(offset);
 
                 if (bytesSkippedActual != bytesSkippedRequested)
                     throw new UnsupportedOperationException("Unable to skip by requested interval");
+
+                bodyBytesRead += bytesSkippedActual;
+
             }
 
             int bytesToRead = Math.min(length, bodyLengthBytes - offset);
