@@ -4,12 +4,15 @@ import android.app.Application;
 import android.content.res.AssetFileDescriptor;
 import android.test.ApplicationTestCase;
 
+import com.google.common.util.concurrent.AtomicDouble;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import pro.dbro.airshare.crypto.KeyPair;
 import pro.dbro.airshare.crypto.SodiumShaker;
@@ -17,6 +20,7 @@ import pro.dbro.airshare.session.FileTransferMessage;
 import pro.dbro.airshare.session.IdentityMessage;
 import pro.dbro.airshare.session.SessionMessage;
 import pro.dbro.airshare.session.SessionMessageReceiver;
+import pro.dbro.airshare.session.SessionMessageSender;
 import pro.dbro.airshare.transport.ble.BLETransport;
 import timber.log.Timber;
 
@@ -79,68 +83,6 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
 
     }
 
-    public void testSerializationAndDeserialization() throws InterruptedException {
-
-        final AtomicBoolean isComplete = new AtomicBoolean(false);
-
-        for (final SessionMessage originalMessage : messages) {
-
-            Timber.d("Serialized Message %s is %d bytes",
-                     originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE),
-                     originalMessage.getTotalLengthBytes());
-
-            isComplete.set(false);
-
-            SessionMessageReceiver receiver = new SessionMessageReceiver(mContext,
-
-                    new SessionMessageReceiver.SessionMessageReceiverCallback() {
-
-                        @Override
-                        public void onHeaderReady(SessionMessageReceiver receiver, SessionMessage message) {
-                            //Timber.d("SessionMessage Header ready");
-                        }
-
-                        @Override
-                        public void onBodyProgress(SessionMessageReceiver receiver, SessionMessage message, float progress) {
-                            //Timber.d("SessionMessage received progress " + progress);
-                        }
-
-                        @Override
-                        public void onComplete(SessionMessageReceiver receiver, SessionMessage deserializedMessage, Exception e) {
-                            Timber.d("Deserialized Message " + originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE));
-
-                            assertEquals(originalMessage, deserializedMessage);
-                            assertTrue(compareMessageBodies(originalMessage, deserializedMessage));
-                            isComplete.set(true);
-                        }
-                    }
-            );
-
-            int readIdx = 0;
-            int serializedChunkLength = BLETransport.MTU_BYTES;
-            while(true) {
-                byte[] serializedChunk = originalMessage.serialize(readIdx, serializedChunkLength);
-
-                if (serializedChunk == null)
-                    break;
-
-                readIdx += serializedChunk.length;
-                receiver.dataReceived(serializedChunk);
-            }
-
-            receiver.reset();
-
-            Timber.d("'%s' message sent %d bytes to receiver",
-                    originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE),
-                    readIdx);
-
-            assertTrue(String.format("'%s' message was not deserialized",
-                                     originalMessage.getHeaders().get(SessionMessage.HEADER_TYPE)),
-                      isComplete.get());
-
-        }
-    }
-
     private boolean compareMessageBodies(SessionMessage first, SessionMessage second) {
         if (first.getHeaderLengthBytes() != second.getHeaderLengthBytes()) return false;
 
@@ -168,5 +110,59 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
 
         Timber.d("Compared " + (readIdx - first.getHeaderLengthBytes()) + " body bytes successfully");
         return true;
+    }
+
+    public void testSerializationAndDeserialization() throws InterruptedException {
+
+        final AtomicBoolean isComplete = new AtomicBoolean(false);
+
+        final AtomicInteger headerReadyCount = new AtomicInteger(0);
+        final AtomicInteger onCompleteCount = new AtomicInteger(0);
+        final AtomicDouble lastProgress = new AtomicDouble(0);
+
+        SessionMessageSender sender = new SessionMessageSender(messages);
+
+        SessionMessageReceiver receiver = new SessionMessageReceiver(mContext,
+
+                new SessionMessageReceiver.SessionMessageReceiverCallback() {
+
+                    @Override
+                    public void onHeaderReady(SessionMessageReceiver receiver, SessionMessage message) {
+                        //Timber.d("SessionMessage Header ready");
+                        headerReadyCount.incrementAndGet();
+                    }
+
+                    @Override
+                    public void onBodyProgress(SessionMessageReceiver receiver, SessionMessage message, float progress) {
+                        Timber.d("SessionMessage received progress " + progress);
+                        assertTrue(lastProgress.get() <= progress);
+                        lastProgress.set(progress);
+                    }
+
+                    @Override
+                    public void onComplete(SessionMessageReceiver receiver, SessionMessage deserializedMessage, Exception e) {
+                        Timber.d("Deserialized Message " + deserializedMessage.getHeaders().get(SessionMessage.HEADER_TYPE));
+
+                        SessionMessage originalMessage = messages.get(onCompleteCount.getAndIncrement());
+                        assertEquals(originalMessage, deserializedMessage);
+                        assertTrue(compareMessageBodies(originalMessage, deserializedMessage));
+                        isComplete.set(true);
+                        lastProgress.set(0);
+                    }
+                }
+        );
+
+        while (true) {
+            byte[] chunk = sender.readNextChunk(BLETransport.MTU_BYTES);
+
+            if (chunk == null) break;
+
+            receiver.dataReceived(chunk);
+
+        }
+
+        assertEquals(onCompleteCount.get(), messages.size());
+        assertEquals(headerReadyCount.get(), messages.size());
+
     }
 }

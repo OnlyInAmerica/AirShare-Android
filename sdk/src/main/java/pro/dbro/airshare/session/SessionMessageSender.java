@@ -3,6 +3,8 @@ package pro.dbro.airshare.session;
 import android.support.annotation.Nullable;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by davidbrodsky on 3/12/15.
@@ -12,9 +14,13 @@ public class SessionMessageSender {
     private ArrayDeque<SessionMessage> messages;
     private int marker;
 
-    public SessionMessageSender(SessionMessage message) {
+    public SessionMessageSender(final SessionMessage message) {
+        this(new ArrayList<SessionMessage>() {{ add(message); }});
+    }
+
+    public SessionMessageSender(List<SessionMessage> messages) {
         this.messages = new ArrayDeque<>();
-        this.messages.add(message);
+        this.messages.addAll(messages);
         marker = 0;
     }
 
