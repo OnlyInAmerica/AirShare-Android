@@ -9,7 +9,6 @@ import com.google.common.util.concurrent.AtomicDouble;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,7 +20,7 @@ import timber.log.Timber;
 
 /**
  * Tests the serialization of {@link pro.dbro.airshare.session.SessionMessage}s
- * as well as their deserialization using {@link pro.dbro.airshare.session.SessionMessageReceiver}
+ * as well as their deserialization using {@link SessionMessageDeserializer}
  */
 public class SessionMessageSerializationTest extends ApplicationTestCase<Application> {
 
@@ -46,11 +45,7 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
 
     private void initializeIdentityMessage(List<SessionMessage> messages) {
         KeyPair keyPair = SodiumShaker.generateKeyPair();
-        LocalPeer localPeer = new LocalPeer(keyPair.publicKey,
-                                            keyPair.secretKey,
-                                            "dbro",     // alias
-                                            new Date(), // lastSeen
-                                            -20);       // rssi
+        LocalPeer localPeer = new LocalPeer(keyPair, "dbro");
 
         messages.add(new IdentityMessage(localPeer));
     }
@@ -132,27 +127,27 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
         final AtomicInteger onCompleteCount = new AtomicInteger(0);
         final AtomicDouble lastProgress = new AtomicDouble(0);
 
-        SessionMessageSender sender = new SessionMessageSender(messages);
+        SessionMessageSerializer sender = new SessionMessageSerializer(messages);
 
-        SessionMessageReceiver receiver = new SessionMessageReceiver(mContext,
+        SessionMessageDeserializer receiver = new SessionMessageDeserializer(mContext,
 
-                new SessionMessageReceiver.SessionMessageReceiverCallback() {
+                new SessionMessageDeserializer.SessionMessageDeserializerCallback() {
 
                     @Override
-                    public void onHeaderReady(SessionMessageReceiver receiver, SessionMessage message) {
+                    public void onHeaderReady(SessionMessageDeserializer receiver, SessionMessage message) {
                         //Timber.d("SessionMessage Header ready");
                         headerReadyCount.incrementAndGet();
                     }
 
                     @Override
-                    public void onBodyProgress(SessionMessageReceiver receiver, SessionMessage message, float progress) {
+                    public void onBodyProgress(SessionMessageDeserializer receiver, SessionMessage message, float progress) {
                         //Timber.d("SessionMessage received progress " + progress);
                         assertTrue(lastProgress.get() <= progress);
                         lastProgress.set(progress);
                     }
 
                     @Override
-                    public void onComplete(SessionMessageReceiver receiver, SessionMessage deserializedMessage, Exception e) {
+                    public void onComplete(SessionMessageDeserializer receiver, SessionMessage deserializedMessage, Exception e) {
                         Timber.d("Deserialized Message " + deserializedMessage.getHeaders().get(SessionMessage.HEADER_TYPE));
 
                         SessionMessage originalMessage = messages.get(onCompleteCount.getAndIncrement());

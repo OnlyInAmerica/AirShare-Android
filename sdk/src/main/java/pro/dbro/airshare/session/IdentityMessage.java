@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import pro.dbro.airshare.DataUtil;
-import pro.dbro.airshare.Peer;
 
 /**
  * Created by davidbrodsky on 2/22/15.

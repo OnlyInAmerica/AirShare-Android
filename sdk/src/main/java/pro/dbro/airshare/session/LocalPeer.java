@@ -2,6 +2,7 @@ package pro.dbro.airshare.session;
 
 import java.util.Date;
 
+import pro.dbro.airshare.crypto.KeyPair;
 import pro.dbro.airshare.session.Peer;
 
 /**
@@ -11,13 +12,10 @@ public class LocalPeer extends Peer {
 
     byte[] privateKey;
 
-    protected LocalPeer(byte[] publicKey,
-                        byte[] privateKey,
-                        String alias,
-                        Date lastSeen,
-                        int rssi) {
+    public LocalPeer(KeyPair keyPair,
+                        String alias) {
 
-        super(publicKey, alias, lastSeen, rssi);
-        this.privateKey = privateKey;
+        super(keyPair.publicKey, alias, null, 0);
+        this.privateKey = keyPair.secretKey;
     }
 }

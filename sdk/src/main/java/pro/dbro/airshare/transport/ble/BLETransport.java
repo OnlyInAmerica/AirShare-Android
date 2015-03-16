@@ -196,6 +196,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
     private boolean transmitOutgoingDataForConnectedPeer(String identifier) {
         if (!outBuffers.containsKey(identifier)) return false;
 
+        // TODO : Should we probably send all or at least some num of out buffers
         ByteBuffer toSend = outBuffers.get(identifier).poll();
 
         boolean didSend = false;

@@ -2,6 +2,8 @@ package pro.dbro.airshare.session;
 
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Objects;
 
 /**
  * Created by davidbrodsky on 2/21/15.
@@ -48,5 +50,25 @@ public class Peer {
                 ", lastSeen=" + lastSeen +
                 ", rssi=" + rssi +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+
+        if(obj == this) return true;
+        if(obj == null) return false;
+
+        if (getClass().equals(obj.getClass()))
+        {
+            Peer other = (Peer) obj;
+            return Objects.equals(publicKey, other.publicKey);
+        }
+
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(publicKey);
     }
 }

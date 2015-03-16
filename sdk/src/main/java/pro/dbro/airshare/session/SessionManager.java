@@ -11,8 +11,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import pro.dbro.airshare.LocalPeer;
-import pro.dbro.airshare.Peer;
 import pro.dbro.airshare.transport.Transport;
 import pro.dbro.airshare.transport.ble.BLETransport;
 import timber.log.Timber;
@@ -20,11 +18,15 @@ import timber.log.Timber;
 /**
  * Created by davidbrodsky on 2/21/15.
  */
-public class SessionManager implements Transport.TransportCallback, SessionMessageReceiver.SessionMessageReceiverCallback {
+public class SessionManager implements Transport.TransportCallback,
+                                       SessionMessageDeserializer.SessionMessageDeserializerCallback,
+        SessionMessageScheduler {
 
     public interface SessionManagerCallback {
 
         public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus);
+
+        public void messageReceivingFromPeer(SessionMessage message, Peer recipient, float progress);
 
         public void messageReceivedFromPeer(SessionMessage message, Peer recipient);
 
@@ -34,16 +36,17 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
 
     }
 
-    private Context                                 context;
-    private Set<Transport>                          transports;
-    private LocalPeer                               localPeer;
-    private IdentityMessage                         localIdentityMessage;
-    private SessionManagerCallback                  callback;
-    private HashMap<String, Set<Transport>>         identifierTransports  = new HashMap<>();
-    private BidiMap<String, SessionMessageReceiver> identifierReceivers   = new DualHashBidiMap<>();
-    private BidiMap<String, SessionMessageSender>   identifierSenders     = new DualHashBidiMap<>();
-    private BidiMap<String, Peer>                   identifiedPeers       = new DualHashBidiMap<>();
-    private Set<String>                             identifyingPeers      = new HashSet<>();
+    private Context                                     context;
+    private String                                      serviceName;
+    private Set<Transport>                              transports;
+    private LocalPeer                                   localPeer;
+    private IdentityMessage                             localIdentityMessage;
+    private SessionManagerCallback                      callback;
+    private HashMap<String, Set<Transport>>             identifierTransports  = new HashMap<>();
+    private BidiMap<String, SessionMessageDeserializer> identifierReceivers   = new DualHashBidiMap<>();
+    private BidiMap<String, SessionMessageSerializer>   identifierSenders     = new DualHashBidiMap<>();
+    private BidiMap<String, Peer>                       identifiedPeers       = new DualHashBidiMap<>();
+    private Set<String>                                 identifyingPeers      = new HashSet<>();
 
     // <editor-fold desc="Public API">
 
@@ -52,13 +55,18 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
                           LocalPeer localPeer,
                           SessionManagerCallback callback) {
 
-        this.localPeer = localPeer;
-        this.callback = callback;
-        this.context = context;
+        this.context     = context;
+        this.serviceName = serviceName;
+        this.localPeer   = localPeer;
+        this.callback    = callback;
 
-        localIdentityMessage = new IdentityMessage(localPeer);
+        localIdentityMessage = new IdentityMessage(this.localPeer);
 
         initializeTransports(serviceName);
+    }
+
+    public String getServiceName() {
+        return serviceName;
     }
 
     public void advertiseLocalPeer() {
@@ -71,22 +79,30 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
             transport.scanForPeers();
     }
 
+    /**
+     * Send a message to the given recipient. If the recipient is not currently available,
+     * delivery will occur next time the peer is available
+     */
     public void sendMessage(SessionMessage message, Peer recipient) {
 
         String recipientIdentifier = identifiedPeers.getKey(recipient);
         Transport transport = getPreferredTransportForPeer(recipient);
 
         if (!identifierSenders.containsKey(recipientIdentifier))
-            identifierSenders.put(recipientIdentifier, new SessionMessageSender(message));
+            identifierSenders.put(recipientIdentifier, new SessionMessageSerializer(message));
         else
             identifierSenders.get(recipientIdentifier).queueMessage(message);
 
-        SessionMessageSender sender = identifierSenders.get(recipientIdentifier);
+        SessionMessageSerializer sender = identifierSenders.get(recipientIdentifier);
 
         if (transport != null)
             transport.sendData(sender.readNextChunk(transport.getMtuBytes()), recipientIdentifier);
 
-        // If the peer is not currently available, data will be sent next time peer is available
+        // If no transport for the peer is available, data will be sent next time peer is available
+    }
+
+    public Set<Peer> getAvailablePeers() {
+        return identifiedPeers.values();
     }
 
     public void stop() {
@@ -124,7 +140,7 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
     public void dataReceivedFromIdentifier(Transport transport, byte[] data, String identifier) {
 
         if (!identifierReceivers.containsKey(identifier))
-            identifierReceivers.put(identifier, new SessionMessageReceiver(context, this));
+            identifierReceivers.put(identifier, new SessionMessageDeserializer(context, this));
 
         identifierReceivers.get(identifier)
                            .dataReceived(data);
@@ -134,7 +150,7 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
     @Override
     public void dataSentToIdentifier(Transport transport, byte[] data, String identifier) {
 
-        SessionMessageSender sender = identifierSenders.get(identifier);
+        SessionMessageSerializer sender = identifierSenders.get(identifier);
 
         if (sender != null && sender.getCurrentMessage() != null) {
 
@@ -166,7 +182,7 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
                 if (shouldIdentifyPeer(identifier)) {
 
                     if (!identifierSenders.containsKey(identifier))
-                        identifierSenders.put(identifier, new SessionMessageSender(localIdentityMessage));
+                        identifierSenders.put(identifier, new SessionMessageSerializer(localIdentityMessage));
                     else
                         Timber.w("Outgoing messages already exist for unidentified peer %s", identifier);
                 }
@@ -177,7 +193,7 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
                 identifierTransports.get(identifier).add(transport);
 
                 // Send outgoing messages to peer
-                SessionMessageSender sender = identifierSenders.get(identifier);
+                SessionMessageSerializer sender = identifierSenders.get(identifier);
 
                 if (sender.getCurrentMessage() != null) {
 
@@ -206,21 +222,21 @@ public class SessionManager implements Transport.TransportCallback, SessionMessa
     // <editor-fold desc="SessionMessageReceiverCallback">
 
     @Override
-    public void onHeaderReady(SessionMessageReceiver receiver, SessionMessage message) {
+    public void onHeaderReady(SessionMessageDeserializer receiver, SessionMessage message) {
 
         String senderIdentifier = identifierReceivers.getKey(receiver);
         Timber.d("Received header for %s message from %s", message.getType(), senderIdentifier);
     }
 
     @Override
-    public void onBodyProgress(SessionMessageReceiver receiver, SessionMessage message, float progress) {
+    public void onBodyProgress(SessionMessageDeserializer receiver, SessionMessage message, float progress) {
 
         String senderIdentifier = identifierReceivers.getKey(receiver);
         Timber.d("Received %s message with progress %f from %s", message.getType(), progress, senderIdentifier);
     }
 
     @Override
-    public void onComplete(SessionMessageReceiver receiver, SessionMessage message, Exception e) {
+    public void onComplete(SessionMessageDeserializer receiver, SessionMessage message, Exception e) {
 
         String senderIdentifier = identifierReceivers.getKey(receiver);
 

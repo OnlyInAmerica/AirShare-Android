@@ -116,6 +116,16 @@ public class FileTransferMessage extends SessionMessage {
 
     // <editor-fold desc="Outgoing Constructors">
 
+    public static FileTransferMessage createAcceptForOffer(FileTransferMessage offer) {
+        if (!offer.getType().equals(FileTransferMessage.HEADER_TYPE_OFFER))
+            throw new IllegalArgumentException("Accept message should be created from offer message");
+
+        HashMap<String, Object> headers = offer.getHeaders();
+        headers.put(SessionMessage.HEADER_TYPE, FileTransferMessage.HEADER_TYPE_ACCEPT);
+
+        return new FileTransferMessage(headers, null);
+    }
+
     /**
      * Construct a FileTransferMessage from a File source.
      *
@@ -174,6 +184,14 @@ public class FileTransferMessage extends SessionMessage {
         inputStream = new BufferedInputStream(body);
         inputStream.mark(bodyLengthBytes);
         status = Status.COMPLETE;
+    }
+
+    public @Nullable InputStream getBody() {
+        if (status != Status.COMPLETE) {
+            Timber.w("getBody called but FileTransferMessage not complete!");
+            return null;
+        }
+        return inputStream;
     }
 
     // </editor-fold desc="Public API">
