@@ -1,7 +1,6 @@
 package pro.dbro.airshare.session;
 
 import android.content.Context;
-import android.provider.ContactsContract;
 import android.support.annotation.Nullable;
 
 import org.json.JSONArray;
@@ -32,7 +31,7 @@ import timber.log.Timber;
  *
  * After construction, call {@link #dataReceived(byte[])} as data arrives and await
  * notification of deserialization events via the
- * {@link pro.dbro.airshare.session.SessionMessageReceiver.SessionMessageReceiverCallback}
+ * {@link pro.dbro.airshare.session.SessionMessageDeserializer.SessionMessageDeserializerCallback}
  * passed to the constructor.
  *
  * This class assumes contiguous serialized SessionMessage chunks will be delivered in-order and
@@ -42,26 +41,26 @@ import timber.log.Timber;
  *
  * Created by davidbrodsky on 2/24/15.
  */
-public class SessionMessageReceiver {
+public class SessionMessageDeserializer {
 
-    public static interface SessionMessageReceiverCallback {
+    public static interface SessionMessageDeserializerCallback {
 
-        public void onHeaderReady(SessionMessageReceiver receiver, SessionMessage message);
+        public void onHeaderReady(SessionMessageDeserializer receiver, SessionMessage message);
 
-        public void onBodyProgress(SessionMessageReceiver receiver, SessionMessage message, float progress);
+        public void onBodyProgress(SessionMessageDeserializer receiver, SessionMessage message, float progress);
 
-        public void onComplete(SessionMessageReceiver receiver, SessionMessage message, Exception e);
+        public void onComplete(SessionMessageDeserializer receiver, SessionMessage message, Exception e);
 
     }
 
-    private Context                        context;
-    private ByteBuffer                     buffer;
-    private SessionMessageReceiverCallback callback;
-    private File                           bodyFile;
-    private OutputStream                   bodyStream;
-    private HashMap<String, Object>        headers;
-    private ByteBuffer                     headerLengthBuffer;
-    private SessionMessage                 sessionMessage;
+    private Context                            context;
+    private ByteBuffer                         buffer;
+    private SessionMessageDeserializerCallback callback;
+    private File                               bodyFile;
+    private OutputStream                       bodyStream;
+    private HashMap<String, Object>            headers;
+    private ByteBuffer                         headerLengthBuffer;
+    private SessionMessage                     sessionMessage;
 
     private boolean gotVersion;
     private boolean gotHeaderLength;
@@ -74,7 +73,7 @@ public class SessionMessageReceiver {
     private int bodyLength;
     private int bodyBytesReceived;
 
-    public SessionMessageReceiver(Context context, SessionMessageReceiverCallback callback) {
+    public SessionMessageDeserializer(Context context, SessionMessageDeserializerCallback callback) {
         buffer = ByteBuffer.allocate(5 * 1000);
         this.callback = callback;
         this.context = context;
@@ -318,6 +317,11 @@ public class SessionMessageReceiver {
         }
     }
 
+    private float getCurrentMessageProgress() {
+        if (bodyLength == 0) return 0;
+        return bodyBytesReceived / (float) bodyLength;
+    }
+
     /**
      * @return the number of bytes which the prefix and header occupy
      * This method only returns a valid value if {@link #gotHeaderLength} is {@code true}
@@ -375,7 +379,7 @@ public class SessionMessageReceiver {
     }
 
     public static List toList(JSONArray array) throws JSONException {
-        List list = new ArrayList();
+        List<Object> list = new ArrayList<>();
         for (int i = 0; i < array.length(); i++) {
             list.add(fromJson(array.get(i)));
         }

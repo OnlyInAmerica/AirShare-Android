@@ -12,16 +12,16 @@ import java.util.List;
  *
  * Created by davidbrodsky on 3/12/15.
  */
-public class SessionMessageSender {
+public class SessionMessageSerializer {
 
     private ArrayDeque<SessionMessage> messages;
     private int marker;
 
-    public SessionMessageSender(final SessionMessage message) {
+    public SessionMessageSerializer(final SessionMessage message) {
         this(new ArrayList<SessionMessage>() {{ add(message); }});
     }
 
-    public SessionMessageSender(List<SessionMessage> messages) {
+    public SessionMessageSerializer(List<SessionMessage> messages) {
         this.messages = new ArrayDeque<>();
         this.messages.addAll(messages);
         marker = 0;
@@ -44,6 +44,11 @@ public class SessionMessageSender {
     /**
      * Read up to length bytes of the current outgoing SessionMessage.
      * If length is 0, a fixed memory-safe size will be read.
+     *
+     * If {@param length} extends beyond the bytes left in the current message,
+     * the result will be a byte[] of lesser length containing the completion of the current message.
+     * This is by design so that when confirmation of that final message chunk arrives, a call to
+     * {@link #getCurrentMessage()} will report the corresponding message.
      */
     public byte[] readNextChunk(int length) {
         if (messages.size() == 0) return null;
