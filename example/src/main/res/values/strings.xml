@@ -1,6 +1,12 @@
 <resources>
     <string name="app_name">AirShare</string>
 
-    <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
+    <string name="share_file">Share File</string>
+    <string name="hello">hello</string>
+
+    <!-- WelcomeFragment -->
+    <string name="user_alias_hint">My Name</string>
+    <string name="choose_a_name">Choose a name</string>
+
 </resources>

@@ -5,6 +5,7 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 import android.util.Pair;
 
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.io.ByteArrayOutputStream;
@@ -86,10 +87,10 @@ public class BLETransport extends Transport implements BLETransportCallback {
     }
 
     private UUID generateUUIDFromString(String input) {
-        String hexString = DigestUtils.sha1Hex(input);
+        String hexString = new String(Hex.encodeHex(DigestUtils.sha1(input)));
         StringBuilder uuid = new StringBuilder();
         // UUID has 32 hex 'digits'. SHA1 Hash has 40
-        uuid.insert(9, hexString);
+        uuid.insert(0, hexString.substring(9));
 
         uuid.insert(8, '-');
         uuid.insert(13,'-');

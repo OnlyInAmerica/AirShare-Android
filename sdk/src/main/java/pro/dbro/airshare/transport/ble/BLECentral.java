@@ -234,8 +234,10 @@ public class BLECentral {
                                     discoveredCharacteristics.put(gatt.getDevice().getAddress(), characteristicSet);
 
                                     for (BluetoothGattCharacteristic characteristic : characteristicSet) {
-                                        if (notifyUUIDs.contains(characteristic.getUuid()))
+                                        if (notifyUUIDs.contains(characteristic.getUuid())) {
+                                            Timber.d("Requesting notification on %s", characteristic.getUuid().toString());
                                             gatt.setCharacteristicNotification(characteristic, true);
+                                        }
                                     }
                                 }
                             }

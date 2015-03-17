@@ -77,6 +77,8 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     private BackgroundThreadHandler backgroundHandler;
     private Handler foregroundHandler;
 
+    private LocalPeer localPeer;
+
     /** Handler Messages */
     public static final int ADVERTISE     = 0;
     public static final int SCAN          = 1;
@@ -122,11 +124,15 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         public void registerLocalUserWithService(String userAlias, String serviceName) {
             KeyPair keyPair = SodiumShaker.generateKeyPair();
-            LocalPeer localPeer = new LocalPeer(keyPair, userAlias);
+            localPeer = new LocalPeer(keyPair, userAlias);
 
             if (sessionManager != null) sessionManager.stop();
 
             sessionManager = new SessionManager(AirShareService.this, serviceName, localPeer, AirShareService.this);
+        }
+
+        public LocalPeer getLocalPeer() {
+            return localPeer;
         }
 
         public void advertiseLocalUser() {
