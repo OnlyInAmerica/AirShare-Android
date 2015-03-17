@@ -44,12 +44,15 @@ import timber.log.Timber;
 public class BLECentral {
     public static final String TAG = "BLECentral";
 
+    private HashSet<UUID> notifyUUIDs = new HashSet<>();
+
+    private HashMap<String, HashSet<BluetoothGattCharacteristic>> discoveredCharacteristics = new HashMap<>();
+
     /**
      * Set of connected device addresses
      */
     private BidiMap<String, BluetoothGatt> connectedDevices = new DualHashBidiMap<>();
 
-    private HashMap<String, HashSet<BluetoothGattCharacteristic>> discoveredCharacteristics = new HashMap<>();
     /**
      * Set of 'connecting' device addresses. Intended to prevent multiple simultaneous connection requests
      */
@@ -82,6 +85,10 @@ public class BLECentral {
         this.transportCallback = callback;
     }
 
+    public void requestNotifyOnCharacteristic(BluetoothGattCharacteristic characteristic) {
+        notifyUUIDs.add(characteristic.getUuid());
+    }
+
     public void start() {
         startScanning();
     }
@@ -99,7 +106,8 @@ public class BLECentral {
     }
 
     public boolean write(BluetoothGattCharacteristic characteristic,
-                      String deviceAddress) {
+                         String deviceAddress) {
+
         if ((characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) !=
                                               BluetoothGattCharacteristic.PROPERTY_WRITE)
             throw new IllegalArgumentException(String.format("Requested write on Characteristic %s without Notify Property",
@@ -197,7 +205,7 @@ public class BLECentral {
                                             Transport.ConnectionStatus.CONNECTED,
                                             null);
                                 // TODO: Stop discovering services once we can
-                                // TOOD: reliably craft characteristics
+                                //       reliably craft characteristics
                                 boolean discovering = gatt.discoverServices();
                                 Timber.d("Discovering services : " + discovering);
                                 //beginRequestFlowWithPeripheral(gatt);
@@ -224,6 +232,11 @@ public class BLECentral {
                                     HashSet<BluetoothGattCharacteristic> characteristicSet = new HashSet<>();
                                     characteristicSet.addAll(service.getCharacteristics());
                                     discoveredCharacteristics.put(gatt.getDevice().getAddress(), characteristicSet);
+
+                                    for (BluetoothGattCharacteristic characteristic : characteristicSet) {
+                                        if (notifyUUIDs.contains(characteristic.getUuid()))
+                                            gatt.setCharacteristicNotification(characteristic, true);
+                                    }
                                 }
                             }
                         } catch (Exception e) {
@@ -244,6 +257,16 @@ public class BLECentral {
 
                         Timber.d("onCharacteristicChanged " + characteristic.getUuid().toString().substring(0,5));
                         super.onCharacteristicChanged(gatt, characteristic);
+                    }
+
+                    @Override
+                    public void onCharacteristicWrite(BluetoothGatt gatt,
+                                                      BluetoothGattCharacteristic characteristic, int status) {
+
+                        if (transportCallback != null)
+                            transportCallback.dataSentToIdentifier(BLETransportCallback.DeviceType.CENTRAL,
+                                                                   characteristic.getValue(),
+                                                                   gatt.getDevice().getAddress());
                     }
 
                     @Override

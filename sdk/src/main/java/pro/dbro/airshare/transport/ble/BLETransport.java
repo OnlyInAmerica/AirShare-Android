@@ -170,7 +170,8 @@ public class BLETransport extends Transport implements BLETransportCallback {
         if (deviceType == DeviceType.CENTRAL && callback.get() != null)
             callback.get().identifierUpdated(this, identifier, status, extraInfo);
 
-        transmitOutgoingDataForConnectedPeer(identifier);
+        if (status == ConnectionStatus.CONNECTED)
+            transmitOutgoingDataForConnectedPeer(identifier);
     }
 
     // </editor-fold desc="BLETransportCallback">
@@ -193,29 +194,32 @@ public class BLETransport extends Transport implements BLETransportCallback {
         }
     }
 
+    // TODO: Don't think the boolean return type is meaningful here as partial success can't be handled
     private boolean transmitOutgoingDataForConnectedPeer(String identifier) {
         if (!outBuffers.containsKey(identifier)) return false;
 
-        // TODO : Should we probably send all or at least some num of out buffers
-        ByteBuffer toSend = outBuffers.get(identifier).poll();
+        ByteBuffer toSend;
+        boolean didSendAll = true;
+        while ((toSend = outBuffers.get(identifier).poll()) != null) {
+            boolean didSend = false;
+            if (central.isConnectedTo(identifier)) {
+                dataCharacteristic.setValue(toSend.array());
+                didSend = central.write(dataCharacteristic, identifier);
+            }
+            else if (peripheral.isConnectedTo(identifier)) {
+                dataCharacteristic.setValue(toSend.array());
+                didSend = peripheral.indicate(dataCharacteristic, identifier);
+            }
 
-        boolean didSend = false;
-        if (central.isConnectedTo(identifier)) {
-            dataCharacteristic.setValue(toSend.array());
-            didSend = central.write(dataCharacteristic, identifier);
-        }
-        else if (peripheral.isConnectedTo(identifier)) {
-            dataCharacteristic.setValue(toSend.array());
-            didSend = peripheral.indicate(dataCharacteristic, identifier);
-        }
+            if (didSend) {
+                availableBuffers.add(toSend);
 
-        if (didSend) {
-            availableBuffers.add(toSend);
-
-            if (callback.get() != null)
-                callback.get().dataSentToIdentifier(this, toSend.array(), identifier);
+                if (callback.get() != null)
+                    callback.get().dataSentToIdentifier(this, toSend.array(), identifier);
+            } else
+                didSendAll = false;
         }
-        return didSend;
+        return didSendAll;
     }
 
     private boolean isConnectedTo(String identifier) {
