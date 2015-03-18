@@ -16,6 +16,7 @@ import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.os.ParcelUuid;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.widget.Toast;
 
 import org.apache.commons.collections4.BidiMap;
@@ -49,19 +50,22 @@ import timber.log.Timber;
 public class BLECentral {
     public static final String TAG = "BLECentral";
 
-    private HashSet<UUID> notifyUUIDs = new HashSet<>();
+    private Set<UUID> notifyUUIDs = new HashSet<>();
 
+    /** Peripheral MAC Address -> Set of characteristics */
     private HashMap<String, HashSet<BluetoothGattCharacteristic>> discoveredCharacteristics = new HashMap<>();
 
-    /**
-     * Set of connected device addresses
-     */
+    /** Peripheral MAC Address -> Peripheral */
     private BidiMap<String, BluetoothGatt> connectedDevices = new DualHashBidiMap<>();
 
     /**
-     * Set of 'connecting' device addresses. Intended to prevent multiple simultaneous connection requests
+     * Peripheral MAC Address -> Peripheral
+     * Intended to prevent multiple simultaneous connection requests
      */
     private Set<String> connectingDevices = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+
+    /** Peripheral MAC Address -> Maximum Transmission Unit */
+    private HashMap<String, Integer> mtus = new HashMap<>();
 
     private Context context;
     private UUID serviceUUID;
@@ -108,6 +112,10 @@ public class BLECentral {
 
     public boolean isConnectedTo(String deviceAddress) {
         return connectedDevices.containsKey(deviceAddress);
+    }
+
+    public @Nullable Integer getMtuForIdentifier(String identifier) {
+        return mtus.get(identifier);
     }
 
     public boolean write(byte[] data,
@@ -219,7 +227,7 @@ public class BLECentral {
                                 // Though we're connected, we shouldn't actually report
                                 // connection until we've discovered all service characteristics
 
-                                boolean mtuSuccess = gatt.requestMtu(BLETransport.MTU_BYTES);
+                                boolean mtuSuccess = gatt.requestMtu(BLETransport.DEFAULT_MTU_BYTES);
 
                                 Timber.d("Connected to %s. Requested MTU success %b", gatt.getDevice().getAddress(),
                                                                                       mtuSuccess);
@@ -234,6 +242,8 @@ public class BLECentral {
                                  mtu,
                                  gatt.getDevice().getAddress(),
                                  status == BluetoothGatt.GATT_SUCCESS);
+
+                        mtus.put(gatt.getDevice().getAddress(), mtu);
 
                         // TODO: Can we craft characteristics and avoid discovery step?
                         boolean discovering = gatt.discoverServices();

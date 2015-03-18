@@ -3,18 +3,14 @@ package pro.dbro.airshare.transport.ble;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Context;
 import android.support.annotation.NonNull;
-import android.util.Pair;
 
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -34,7 +30,7 @@ import timber.log.Timber;
 
 /**
  * Every Identifier gets a ByteBuffer that all outgoing data gets copied to, and
- * is read from in MTU_BYTES increments for the actual sendData call.
+ * is read from in DEFAULT_MTU_BYTES increments for the actual sendData call.
  *
  * *** THOUGHTS ***
  *
@@ -50,13 +46,13 @@ import timber.log.Timber;
  */
 public class BLETransport extends Transport implements BLETransportCallback {
 
-    public static final int MTU_BYTES = 155;
+    public static final int DEFAULT_MTU_BYTES = 155;
 
     private final UUID serviceUUID;
     private final UUID dataUUID    = UUID.fromString("72A7700C-859D-4317-9E35-D7F5A93005B1");
 
-    private HashMap<String, ArrayDeque<ByteBuffer>> outBuffers = new HashMap<>();
-    private ArrayDeque<ByteBuffer> availableBuffers = new ArrayDeque<>();
+    /** Identifier -> Queue of outgoing buffers */
+    private HashMap<String, ArrayDeque<byte[]>> outBuffers = new HashMap<>();
 
     private final BluetoothGattCharacteristic dataCharacteristic
             = new BluetoothGattCharacteristic(dataUUID,
@@ -143,7 +139,8 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
     @Override
     public int getMtuForIdentifier(String identifier) {
-        return MTU_BYTES;
+        Integer mtu = central.getMtuForIdentifier(identifier);
+        return mtu == null ? DEFAULT_MTU_BYTES : mtu;
     }
 
     // </editor-fold desc="Transport">
@@ -184,19 +181,23 @@ public class BLETransport extends Transport implements BLETransportCallback {
      */
     private void queueOutgoingData(byte[] data, String identifier) {
         if (!outBuffers.containsKey(identifier)) {
-            outBuffers.put(identifier, new ArrayDeque<ByteBuffer>());
+            outBuffers.put(identifier, new ArrayDeque<byte[]>());
         }
+
+        int mtu = getMtuForIdentifier(identifier);
 
         int readIdx = 0;
         while (readIdx < data.length) {
-            ByteBuffer nextOutBuffer = availableBuffers.poll();
-            if (nextOutBuffer == null) nextOutBuffer = ByteBuffer.allocate(MTU_BYTES);
-            nextOutBuffer.clear();
-            int bytesToRead = Math.min(MTU_BYTES, data.length - readIdx);
-            nextOutBuffer.limit(bytesToRead);
-            nextOutBuffer.put(data, readIdx, bytesToRead);
-            readIdx += bytesToRead;
-            outBuffers.get(identifier).add(nextOutBuffer);
+
+            if (data.length - readIdx > mtu) {
+                ByteArrayOutputStream bos = new ByteArrayOutputStream(mtu);
+                bos.write(data, readIdx, mtu);
+                outBuffers.get(identifier).add(bos.toByteArray());
+                readIdx += mtu;
+            } else {
+                outBuffers.get(identifier).add(data);
+                break;
+            }
         }
     }
 
@@ -204,23 +205,22 @@ public class BLETransport extends Transport implements BLETransportCallback {
     private boolean transmitOutgoingDataForConnectedPeer(String identifier) {
         if (!outBuffers.containsKey(identifier)) return false;
 
-        ByteBuffer toSend;
+        byte[] toSend;
         boolean didSendAll = true;
         while ((toSend = outBuffers.get(identifier).poll()) != null) {
             boolean didSend = false;
             if (central.isConnectedTo(identifier)) {
-                didSend = central.write(toSend.array(), dataCharacteristic.getUuid(), identifier);
+                didSend = central.write(toSend, dataCharacteristic.getUuid(), identifier);
             }
             else if (peripheral.isConnectedTo(identifier)) {
-                didSend = peripheral.indicate(toSend.array(), dataCharacteristic.getUuid(), identifier);
+                didSend = peripheral.indicate(toSend, dataCharacteristic.getUuid(), identifier);
             }
 
             if (didSend) {
-                Timber.d("Sent %d bytes to %s", toSend.capacity(), identifier);
-                availableBuffers.add(toSend);
+                Timber.d("Sent %d bytes to %s", toSend.length, identifier);
 
                 if (callback.get() != null)
-                    callback.get().dataSentToIdentifier(this, toSend.array(), identifier);
+                    callback.get().dataSentToIdentifier(this, toSend, identifier);
             } else {
                 Timber.d("Failed to send to %s", identifier);
                 didSendAll = false;

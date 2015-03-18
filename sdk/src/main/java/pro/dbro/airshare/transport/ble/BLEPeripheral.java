@@ -325,14 +325,14 @@ public class BLEPeripheral {
     private void setupGattServer() {
         assert(gattServer != null);
 
-        BluetoothGattService chatService = new BluetoothGattService(serviceUUID,
-                                                                    BluetoothGattService.SERVICE_TYPE_PRIMARY);
+        BluetoothGattService service = new BluetoothGattService(serviceUUID,
+                                                                BluetoothGattService.SERVICE_TYPE_PRIMARY);
 
         for (BluetoothGattCharacteristic characteristic : characterisitics) {
-            chatService.addCharacteristic(characteristic);
+            service.addCharacteristic(characteristic);
         }
 
-        gattServer.addService(chatService);
+        gattServer.addService(service);
     }
 
     private AdvertiseData createAdvData() {
