@@ -65,6 +65,6 @@ public abstract class Transport {
     /**
      * @return the Maximum Transmission Unit, in bytes, or 0 if unlimited.
      */
-    public abstract int getMtuBytes();
+    public abstract int getMtuForIdentifier(String identifier);
 
 }

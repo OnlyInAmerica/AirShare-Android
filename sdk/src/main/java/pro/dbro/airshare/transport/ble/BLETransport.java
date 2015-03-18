@@ -142,7 +142,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
     }
 
     @Override
-    public int getMtuBytes() {
+    public int getMtuForIdentifier(String identifier) {
         return MTU_BYTES;
     }
 

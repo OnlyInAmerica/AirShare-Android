@@ -102,7 +102,8 @@ public class SessionManager implements Transport.TransportCallback,
         SessionMessageSerializer sender = identifierSenders.get(recipientIdentifier);
 
         if (transport != null)
-            transport.sendData(sender.readNextChunk(transport.getMtuBytes()), recipientIdentifier);
+            transport.sendData(sender.readNextChunk(transport.getMtuForIdentifier(recipientIdentifier)),
+                               recipientIdentifier);
         else
             Timber.d("Send queued. No transport available for identifier %s", recipientIdentifier);
 
@@ -189,7 +190,7 @@ public class SessionManager implements Transport.TransportCallback,
                                               sender.getCurrentMessageProgress());
             }
 
-            byte[] toSend = sender.readNextChunk(transport.getMtuBytes());
+            byte[] toSend = sender.readNextChunk(transport.getMtuForIdentifier(identifier));
             if (toSend != null)
                 transport.sendData(toSend, identifier);
         }
@@ -220,7 +221,8 @@ public class SessionManager implements Transport.TransportCallback,
 
                     boolean sendingIdentity = sender.getCurrentMessage() instanceof IdentityMessage;
 
-                    if (transport.sendData(sender.readNextChunk(transport.getMtuBytes()), identifier)) {
+                    if (transport.sendData(sender.readNextChunk(transport.getMtuForIdentifier(identifier)),
+                                           identifier)) {
                         if (sendingIdentity) {
                             identifyingPeers.add(identifier);
                             Timber.d("Sent identity to %s", identifier);
