@@ -14,7 +14,10 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.TextView;
+
+import com.getbase.floatingactionbutton.FloatingActionButton;
 
 import pro.dbro.airshare.app.AirShareService;
 import pro.dbro.airshare.sample.AirShareSampleApp;
@@ -38,6 +41,8 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
     private boolean serviceBound = false;  // Are we bound to the ChatService?
     private boolean bluetoothReceiverRegistered = false; // Are we registered for Bluetooth status broadcasts?
 
+    private FloatingActionButton fab;
+
     private AlertDialog mBluetoothEnableDialog;
 
     private LocalPeer localPeer;
@@ -46,6 +51,15 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        fab = (FloatingActionButton) findViewById(R.id.fab);
+        fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (serviceBinder != null)
+                    serviceBinder.advertiseLocalUser();
+            }
+        });
     }
 
     @Override
@@ -86,10 +100,15 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, peerFragment)
                 .commit();
+
+        fab.setVisibility(View.VISIBLE);
     }
 
     private void showWelcomeFragment() {
         Timber.d("Showing welcome frag ");
+
+        fab.setVisibility(View.GONE);
+
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, new WelcomeFragment())
                 .commit();

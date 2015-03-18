@@ -37,8 +37,13 @@ import pro.dbro.airshare.transport.Transport;
 import timber.log.Timber;
 
 /**
- * A basic BLE Central device that discovers peripherals
- * <p/>
+ * A basic BLE Central device that discovers peripherals.
+ *
+ * Upon connection to a Peripheral this device performs a few initialization steps in order:
+ * 1. Requests an MTU
+ * 2. (On response to the MTU request) discovers services
+ * 3. (On response to service discovery) reports connection
+ *
  * Created by davidbrodsky on 10/2/14.
  */
 public class BLECentral {
@@ -105,17 +110,32 @@ public class BLECentral {
         return connectedDevices.containsKey(deviceAddress);
     }
 
-    public boolean write(BluetoothGattCharacteristic characteristic,
+    public boolean write(byte[] data,
+                         UUID characteristicUuid,
                          String deviceAddress) {
 
-        if ((characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) !=
-                                              BluetoothGattCharacteristic.PROPERTY_WRITE)
+        BluetoothGattCharacteristic discoveredCharacteristic = null;
+
+        for (BluetoothGattCharacteristic characteristic : discoveredCharacteristics.get(deviceAddress)) {
+            if (characteristic.getUuid().equals(characteristicUuid))
+                discoveredCharacteristic = characteristic;
+        }
+
+        if (discoveredCharacteristic == null) {
+            Timber.w("No characteristic with uuid %s discovered for device %s", characteristicUuid, deviceAddress);
+            return false;
+        }
+
+        discoveredCharacteristic.setValue(data);
+
+        if ((discoveredCharacteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) !=
+                                                        BluetoothGattCharacteristic.PROPERTY_WRITE)
             throw new IllegalArgumentException(String.format("Requested write on Characteristic %s without Notify Property",
-                    characteristic.getUuid()));
+                    characteristicUuid.toString()));
 
         BluetoothGatt recipient = connectedDevices.get(deviceAddress);
         if (recipient != null) {
-            return recipient.writeCharacteristic(characteristic);
+            return recipient.writeCharacteristic(discoveredCharacteristic);
         }
         Timber.w("Unable to write " + deviceAddress);
         return false;
@@ -189,29 +209,35 @@ public class BLECentral {
                                 connectedDevices.remove(gatt.getDevice().getAddress());
                                 connectingDevices.remove(gatt.getDevice().getAddress());
                                 if (transportCallback != null)
-                                    transportCallback.identifierUpdated(BLETransportCallback.DeviceType.PERIPHERAL,
+                                    transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
                                                                         gatt.getDevice().getAddress(),
                                                                         Transport.ConnectionStatus.DISCONNECTED,
                                                                         null);
                                 gatt.close();
                                 break;
                             case BluetoothProfile.STATE_CONNECTED:
-                                Timber.d("Connected to " + gatt.getDevice().getAddress());
-                                connectedDevices.put(gatt.getDevice().getAddress(), gatt);
-                                connectingDevices.remove(gatt.getDevice().getAddress());
-                                if (transportCallback != null)
-                                    transportCallback.identifierUpdated(BLETransportCallback.DeviceType.PERIPHERAL,
-                                            gatt.getDevice().getAddress(),
-                                            Transport.ConnectionStatus.CONNECTED,
-                                            null);
-                                // TODO: Stop discovering services once we can
-                                //       reliably craft characteristics
-                                boolean discovering = gatt.discoverServices();
-                                Timber.d("Discovering services : " + discovering);
-                                //beginRequestFlowWithPeripheral(gatt);
+                                // Though we're connected, we shouldn't actually report
+                                // connection until we've discovered all service characteristics
+
+                                boolean mtuSuccess = gatt.requestMtu(BLETransport.MTU_BYTES);
+
+                                Timber.d("Connected to %s. Requested MTU success %b", gatt.getDevice().getAddress(),
+                                                                                      mtuSuccess);
                                 break;
                         }
                         super.onConnectionStateChange(gatt, status, newState);
+                    }
+
+                    @Override
+                    public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+                        Timber.d("Got MTU (%d bytes) for device %s. Was changed successfully: %b",
+                                 mtu,
+                                 gatt.getDevice().getAddress(),
+                                 status == BluetoothGatt.GATT_SUCCESS);
+
+                        // TODO: Can we craft characteristics and avoid discovery step?
+                        boolean discovering = gatt.discoverServices();
+                        Timber.d("Discovering services : " + discovering);
                     }
 
                     @Override
@@ -241,6 +267,16 @@ public class BLECentral {
                                     }
                                 }
                             }
+
+                            if (foundService) {
+                                connectedDevices.put(gatt.getDevice().getAddress(), gatt);
+                                connectingDevices.remove(gatt.getDevice().getAddress());
+                                if (transportCallback != null)
+                                    transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
+                                            gatt.getDevice().getAddress(),
+                                            Transport.ConnectionStatus.CONNECTED,
+                                            null);
+                            }
                         } catch (Exception e) {
                             Timber.d("Exception analyzing discovered services " + e.getLocalizedMessage());
                             e.printStackTrace();
@@ -252,12 +288,14 @@ public class BLECentral {
 
                     @Override
                     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                        Timber.d("onCharacteristicChanged %s with %d bytes", characteristic.getUuid().toString().substring(0,5),
+                                                                             characteristic.getValue().length);
+
                         if (transportCallback != null)
                             transportCallback.dataReceivedFromIdentifier(BLETransportCallback.DeviceType.CENTRAL,
                                                                          characteristic.getValue(),
                                                                          gatt.getDevice().getAddress());
 
-                        Timber.d("onCharacteristicChanged " + characteristic.getUuid().toString().substring(0,5));
                         super.onCharacteristicChanged(gatt, characteristic);
                     }
 

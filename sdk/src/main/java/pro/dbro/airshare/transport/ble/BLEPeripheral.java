@@ -114,20 +114,37 @@ public class BLEPeripheral {
     }
 
 
-    public boolean indicate(BluetoothGattCharacteristic characteristic,
-                          String deviceAddress) {
+    public boolean indicate(byte[] data,
+                            UUID characteristicUuid,
+                            String deviceAddress) {
 
-        if ((characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE) !=
-                                              BluetoothGattCharacteristic.PROPERTY_INDICATE)
+        BluetoothGattCharacteristic targetCharacteristic = null;
+        for (BluetoothGattCharacteristic characteristic : characterisitics) {
+            if (characteristic.getUuid().equals(characteristicUuid))
+                targetCharacteristic = characteristic;
+        }
+
+        if (targetCharacteristic == null) {
+            Timber.w("No characteristic with uuid %s discovered for device %s", characteristicUuid, deviceAddress);
+            return false;
+        }
+
+        targetCharacteristic.setValue(data);
+
+        if ((targetCharacteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE) !=
+                                                    BluetoothGattCharacteristic.PROPERTY_INDICATE)
             throw new IllegalArgumentException(String.format("Requested indicate on Characteristic %s without Notify Property",
-                                                             characteristic.getUuid()));
+                                                             targetCharacteristic.getUuid()));
 
         BluetoothDevice recipient = connectedDevices.get(deviceAddress);
 
-        if (recipient != null && gattServer != null)
-            return gattServer.notifyCharacteristicChanged(recipient,
-                                                          characteristic,
-                                                          true);
+        if (recipient != null && gattServer != null) {
+            boolean success = gattServer.notifyCharacteristicChanged(recipient,
+                                                                     targetCharacteristic,
+                                                                     true);
+            Timber.d("Notified %d bytes to %s with success %b", data.length, deviceAddress, success);
+            return success;
+        }
 
         Timber.w("Unable to indicate " + deviceAddress);
         return false;

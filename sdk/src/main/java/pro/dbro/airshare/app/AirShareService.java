@@ -255,10 +255,15 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     // <editor-fold desc="SessionManagerCallback">
 
     @Override
-    public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus) {
+    public void peerStatusUpdated(final Peer peer, final Transport.ConnectionStatus newStatus) {
 
-        if (pCallback != null)
-            pCallback.peerStatusUpdated(peer, newStatus);
+        foregroundHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (pCallback != null)
+                    pCallback.peerStatusUpdated(peer, newStatus);
+            }
+        });
 
     }
 

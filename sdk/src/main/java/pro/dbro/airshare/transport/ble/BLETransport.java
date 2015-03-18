@@ -80,6 +80,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
         central = new BLECentral(context, serviceUUID);
         central.setTransportCallback(this);
+        central.requestNotifyOnCharacteristic(dataCharacteristic);
 
         peripheral = new BLEPeripheral(context, serviceUUID);
         peripheral.setTransportCallback(this);
@@ -114,7 +115,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
     }
 
     @Override
-    public boolean sendData(byte[] data, String identifier) {
+    public boolean sendData(@NonNull byte[] data, String identifier) {
 
         queueOutgoingData(data, identifier);
 
@@ -167,6 +168,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
                                   ConnectionStatus status,
                                   Map<String, Object> extraInfo) {
 
+        Timber.d("%s status: %s", identifier, status.toString());
         // Only the Central device should initiate device discovery
         if (deviceType == DeviceType.CENTRAL && callback.get() != null)
             callback.get().identifierUpdated(this, identifier, status, extraInfo);
@@ -189,8 +191,11 @@ public class BLETransport extends Transport implements BLETransportCallback {
         while (readIdx < data.length) {
             ByteBuffer nextOutBuffer = availableBuffers.poll();
             if (nextOutBuffer == null) nextOutBuffer = ByteBuffer.allocate(MTU_BYTES);
-            nextOutBuffer.put(data, readIdx, MTU_BYTES);
-            readIdx += MTU_BYTES;
+            nextOutBuffer.clear();
+            int bytesToRead = Math.min(MTU_BYTES, data.length - readIdx);
+            nextOutBuffer.limit(bytesToRead);
+            nextOutBuffer.put(data, readIdx, bytesToRead);
+            readIdx += bytesToRead;
             outBuffers.get(identifier).add(nextOutBuffer);
         }
     }
@@ -204,21 +209,22 @@ public class BLETransport extends Transport implements BLETransportCallback {
         while ((toSend = outBuffers.get(identifier).poll()) != null) {
             boolean didSend = false;
             if (central.isConnectedTo(identifier)) {
-                dataCharacteristic.setValue(toSend.array());
-                didSend = central.write(dataCharacteristic, identifier);
+                didSend = central.write(toSend.array(), dataCharacteristic.getUuid(), identifier);
             }
             else if (peripheral.isConnectedTo(identifier)) {
-                dataCharacteristic.setValue(toSend.array());
-                didSend = peripheral.indicate(dataCharacteristic, identifier);
+                didSend = peripheral.indicate(toSend.array(), dataCharacteristic.getUuid(), identifier);
             }
 
             if (didSend) {
+                Timber.d("Sent %d bytes to %s", toSend.capacity(), identifier);
                 availableBuffers.add(toSend);
 
                 if (callback.get() != null)
                     callback.get().dataSentToIdentifier(this, toSend.array(), identifier);
-            } else
+            } else {
+                Timber.d("Failed to send to %s", identifier);
                 didSendAll = false;
+            }
         }
         return didSendAll;
     }
