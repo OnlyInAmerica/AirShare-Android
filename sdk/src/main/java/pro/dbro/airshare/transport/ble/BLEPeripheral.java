@@ -22,6 +22,7 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
 import java.net.UnknownServiceException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -294,7 +295,6 @@ public class BLEPeripheral {
             @Override
             public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
                 Timber.d("onDescriptorWriteRequest %s", descriptor.toString());
-                if (descriptor.getValue() == BluetoothGattDescriptor.ENABLE_INDICATION_VALUE) {
                     boolean success = gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
                     Timber.d("Sent Indication sub response with success %b", success);
                 }

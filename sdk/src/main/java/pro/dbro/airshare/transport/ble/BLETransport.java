@@ -1,6 +1,7 @@
 package pro.dbro.airshare.transport.ble;
 
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
@@ -72,7 +73,12 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
         super(serviceName, callback);
 
-        serviceUUID = generateUUIDFromString(serviceName);
+        serviceUUID = UUID.fromString("B491602C-C912-47AE-B639-9C17A4AADB06");
+        /* generateUUIDFromString(serviceName); */
+
+        dataCharacteristic.addDescriptor(new BluetoothGattDescriptor(BLECentral.CLIENT_CHARACTERISTIC_CONFIG,
+                                                                     BluetoothGattDescriptor.PERMISSION_WRITE |
+                                                                             BluetoothGattDescriptor.PERMISSION_READ));
 
         central = new BLECentral(context, serviceUUID);
         central.setTransportCallback(this);
@@ -140,7 +146,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
     @Override
     public int getMtuForIdentifier(String identifier) {
         Integer mtu = central.getMtuForIdentifier(identifier);
-        return mtu == null ? DEFAULT_MTU_BYTES : mtu;
+        return (mtu == null ? DEFAULT_MTU_BYTES : mtu ) - 10;
     }
 
     // </editor-fold desc="Transport">

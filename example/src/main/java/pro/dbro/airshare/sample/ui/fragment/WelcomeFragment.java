@@ -36,7 +36,6 @@ public class WelcomeFragment extends Fragment {
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                 if (actionId == EditorInfo.IME_ACTION_DONE) {
                     listener.onUsernameSelected(v.getText().toString());
-                    return true;
                 }
                 return false;
             }

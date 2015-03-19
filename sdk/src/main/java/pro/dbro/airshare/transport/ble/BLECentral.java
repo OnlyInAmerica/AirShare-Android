@@ -288,11 +288,6 @@ public class BLECentral {
                             if (foundService) {
                                 connectedDevices.put(gatt.getDevice().getAddress(), gatt);
                                 connectingDevices.remove(gatt.getDevice().getAddress());
-                                if (transportCallback != null)
-                                    transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
-                                            gatt.getDevice().getAddress(),
-                                            Transport.ConnectionStatus.CONNECTED,
-                                            null);
                             }
                         } catch (Exception e) {
                             Timber.d("Exception analyzing discovered services " + e.getLocalizedMessage());
@@ -301,6 +296,20 @@ public class BLECentral {
                         if (!foundService)
                             Timber.d("Could not discover chat service!");
                         super.onServicesDiscovered(gatt, status);
+                    }
+
+                    @Override
+                    public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
+                                                  int status) {
+
+                        Timber.d("onDescriptorWrite");
+                        // TODO : Ensure this is only happening as part of the initial connection handshake
+                        if (transportCallback != null)
+                            transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
+                                                                gatt.getDevice().getAddress(),
+                                                                Transport.ConnectionStatus.CONNECTED,
+                                                                null);
+
                     }
 
                     @Override
