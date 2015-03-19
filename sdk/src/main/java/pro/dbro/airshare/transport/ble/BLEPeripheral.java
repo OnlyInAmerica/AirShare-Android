@@ -287,15 +287,16 @@ public class BLEPeripheral {
 
             @Override
             public void onDescriptorReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattDescriptor descriptor) {
-                Timber.i("onDescriptorReadRequest", descriptor.toString());
+                Timber.d("onDescriptorReadRequest %s", descriptor.toString());
                 super.onDescriptorReadRequest(device, requestId, offset, descriptor);
             }
 
             @Override
             public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
-                Timber.i("onDescriptorWriteRequest", descriptor.toString());
+                Timber.d("onDescriptorWriteRequest %s", descriptor.toString());
                 if (descriptor.getValue() == BluetoothGattDescriptor.ENABLE_INDICATION_VALUE) {
-                    // TODO Mark this characterisitic as our notify
+                    boolean success = gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+                    Timber.d("Sent Indication sub response with success %b", success);
                 }
                 super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value);
             }

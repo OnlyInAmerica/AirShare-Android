@@ -1,5 +1,7 @@
 package pro.dbro.airshare.session;
 
+import android.util.Base64;
+
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,7 +26,7 @@ public class IdentityMessage extends SessionMessage {
      * Convenience creator for deserialization
      */
     public static IdentityMessage fromHeaders(Map<String, Object> headers) {
-        Peer peer = new Peer(DataUtil.hexToBytes((String) headers.get(HEADER_PUBKEY)),
+        Peer peer = new Peer(Base64.decode((String) headers.get(HEADER_PUBKEY), Base64.DEFAULT),
                              (String) headers.get(HEADER_ALIAS),
                              new Date(),
                              -1);
@@ -58,7 +60,7 @@ public class IdentityMessage extends SessionMessage {
         HashMap<String, Object> headerMap = super.populateHeaders();
 
         headerMap.put(HEADER_ALIAS, peer.getAlias());
-        headerMap.put(HEADER_PUBKEY, DataUtil.bytesToHex(peer.getPublicKey()));
+        headerMap.put(HEADER_PUBKEY, Base64.encodeToString(peer.getPublicKey(), Base64.DEFAULT));
 
         return headerMap;
     }

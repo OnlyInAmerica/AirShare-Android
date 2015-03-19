@@ -51,6 +51,8 @@ import timber.log.Timber;
 public class BLECentral {
     public static final String TAG = "BLECentral";
 
+    public static final UUID CLIENT_CHARACTERISTIC_CONFIG = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+
     private Set<UUID> notifyUUIDs = new HashSet<>();
 
     /** Peripheral MAC Address -> Set of characteristics */
@@ -272,8 +274,12 @@ public class BLECentral {
 
                                     for (BluetoothGattCharacteristic characteristic : characteristicSet) {
                                         if (notifyUUIDs.contains(characteristic.getUuid())) {
-                                            Timber.d("Requesting notification on %s", characteristic.getUuid().toString());
-                                            gatt.setCharacteristicNotification(characteristic, true);
+                                            boolean success = gatt.setCharacteristicNotification(characteristic, true);
+                                            Timber.d("Request notification on %s with sucess %b", characteristic.getUuid().toString(), success);
+                                            BluetoothGattDescriptor desc = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG);
+                                            desc.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+                                            boolean desSuccess = gatt.writeDescriptor(desc);
+                                            Timber.d("Wrote descriptor with success %b", desSuccess);
                                         }
                                     }
                                 }

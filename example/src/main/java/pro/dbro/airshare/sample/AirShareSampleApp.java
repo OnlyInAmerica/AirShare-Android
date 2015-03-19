@@ -22,7 +22,7 @@ public class AirShareSampleApp extends Application {
         }
 
         // If we abandon Timber logging in this app, enable below line
-        // to enable Timber logging in sdk 
+        // to enable Timber logging in sdk
         //Logging.forceLogging();
     }
 

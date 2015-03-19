@@ -261,8 +261,10 @@ public class SessionManager implements Transport.TransportCallback,
 
                     boolean sendingIdentity = sender.getCurrentMessage() instanceof IdentityMessage;
 
-                    if (transport.sendData(sender.serializeNextChunk(transport.getMtuForIdentifier(identifier)),
-                                           identifier)) {
+                    byte[] toSend = sender.serializeNextChunk(transport.getMtuForIdentifier(identifier));
+                    if (toSend == null) return;
+
+                    if (transport.sendData(toSend, identifier)) {
                         if (sendingIdentity) {
                             identifyingPeers.add(identifier);
                             Timber.d("Sent identity to %s", identifier);
@@ -277,6 +279,7 @@ public class SessionManager implements Transport.TransportCallback,
 
             case DISCONNECTED:
                 Timber.d("Disconnected from %s", identifier);
+                identifyingPeers.remove(identifier);
                 // We should maintain (in memory) identifiedPeers and identifierTransports
                 // in case an identifier re-appears shortly
                 if (identifiedPeers.containsKey(identifier))
