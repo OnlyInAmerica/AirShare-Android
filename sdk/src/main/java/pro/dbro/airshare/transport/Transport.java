@@ -26,7 +26,8 @@ public abstract class Transport {
 
         public void dataSentToIdentifier(Transport transport,
                                          byte[] data,
-                                         String identifier);
+                                         String identifier,
+                                         Exception exception);
 
         public void identifierUpdated(Transport transport,
                                       String identifier,

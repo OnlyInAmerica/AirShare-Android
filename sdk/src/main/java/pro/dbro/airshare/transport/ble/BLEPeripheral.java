@@ -21,6 +21,7 @@ import android.support.annotation.NonNull;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
+import java.net.UnknownServiceException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -307,10 +308,19 @@ public class BLEPeripheral {
 
             @Override
             public void onNotificationSent(BluetoothDevice device, int status) {
+
+                Exception exception = null;
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    String msg = "notify not successful with code " + status;
+                    Timber.w(msg);
+                    exception = new UnknownServiceException(msg);
+                }
+
                 if (transportCallback != null)
                     transportCallback.dataSentToIdentifier(BLETransportCallback.DeviceType.PERIPHERAL,
                                                            null, /** data */
-                                                           device.getAddress());
+                                                           device.getAddress(),
+                                                           exception);
             }
         };
 

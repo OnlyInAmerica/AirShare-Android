@@ -10,7 +10,8 @@ public class Logging {
     private static boolean isLogging = false;
 
     /**
-     * Force logging when used as a library project. See:
+     * Force logging when used as a library project if the host project
+     * does not use Timber. See:
      * https://code.google.com/p/android/issues/detail?id=52962
      */
     public static void forceLogging() {

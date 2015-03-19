@@ -21,7 +21,9 @@ public class AirShareSampleApp extends Application {
             Timber.plant(new CrashReportingTree());
         }
 
-        Logging.forceLogging();
+        // If we abandon Timber logging in this app, enable below line
+        // to enable Timber logging in sdk 
+        //Logging.forceLogging();
     }
 
     /** A tree which logs important information for crash reporting. */

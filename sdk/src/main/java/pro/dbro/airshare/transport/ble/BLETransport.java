@@ -154,9 +154,10 @@ public class BLETransport extends Transport implements BLETransportCallback {
     }
 
     @Override
-    public void dataSentToIdentifier(DeviceType deviceType, byte[] data, String identifier) {
+    public void dataSentToIdentifier(DeviceType deviceType, byte[] data, String identifier, Exception exception) {
+        Timber.d("Got receipt for %d sent bytes", data.length);
         if (callback.get() != null)
-            callback.get().dataSentToIdentifier(this, data, identifier);
+            callback.get().dataSentToIdentifier(this, data, identifier, exception);
     }
 
     @Override
@@ -219,12 +220,9 @@ public class BLETransport extends Transport implements BLETransportCallback {
             if (didSend) {
                 Timber.d("Sent %d bytes to %s", toSend.length, identifier);
 
-                if (callback.get() != null)
-                    callback.get().dataSentToIdentifier(this, toSend, identifier);
-
                 outBuffers.get(identifier).poll();
             } else {
-                Timber.d("Failed to send %d bytes to %s", toSend.length, identifier);
+                Timber.w("Failed to send %d bytes to %s", toSend.length, identifier);
                 didSendAll = false;
                 break;
             }

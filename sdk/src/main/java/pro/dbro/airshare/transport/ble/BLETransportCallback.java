@@ -17,7 +17,8 @@ public interface BLETransportCallback {
 
     public void dataSentToIdentifier(DeviceType deviceType,
                                      byte[] data,
-                                     String identifier);
+                                     String identifier,
+                                     Exception e);
 
     public void identifierUpdated(DeviceType deviceType,
                                   String identifier,

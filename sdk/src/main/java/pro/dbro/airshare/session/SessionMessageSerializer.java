@@ -71,6 +71,7 @@ public class SessionMessageSerializer {
         } else {
             marker += result.length;
             serializeCount++;
+            Timber.d("serializeNextChunk");
         }
 
         return result;
@@ -84,7 +85,7 @@ public class SessionMessageSerializer {
      */
     public @Nullable Pair<SessionMessage, Float> ackChunkDelivery() {
         ackCount++;
-
+        Timber.d("Ack");
         SessionMessage message = null;
         float progress = 0;
 

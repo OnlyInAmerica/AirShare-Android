@@ -22,6 +22,7 @@ import android.widget.Toast;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
+import java.net.UnknownServiceException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -313,10 +314,19 @@ public class BLECentral {
                     public void onCharacteristicWrite(BluetoothGatt gatt,
                                                       BluetoothGattCharacteristic characteristic, int status) {
 
+                        Timber.d("onCharacteristicWrite with %d bytes", characteristic.getValue().length);
+                        Exception exception = null;
+                        if (status != BluetoothGatt.GATT_SUCCESS) {
+                            String msg = "Write was not successful with code " + status;
+                            Timber.w(msg);
+                            exception = new UnknownServiceException(msg);
+                        }
+
                         if (transportCallback != null)
                             transportCallback.dataSentToIdentifier(BLETransportCallback.DeviceType.CENTRAL,
                                                                    characteristic.getValue(),
-                                                                   gatt.getDevice().getAddress());
+                                                                   gatt.getDevice().getAddress(),
+                                                                   exception);
                     }
 
                     @Override

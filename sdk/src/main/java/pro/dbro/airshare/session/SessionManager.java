@@ -149,7 +149,7 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     private boolean shouldIdentifyPeer(String identifier) {
-        return !identifiedPeers.containsKey(identifier) && !identifyingPeers.contains(identifier);
+        return /*!identifiedPeers.containsKey(identifier) && */ !identifyingPeers.contains(identifier);
     }
 
     private void registerTransportForIdentifier(Transport transport, String identifier) {
@@ -180,9 +180,14 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     @Override
-    public void dataSentToIdentifier(Transport transport, byte[] data, String identifier) {
+    public void dataSentToIdentifier(Transport transport, byte[] data, String identifier, Exception exception) {
 
         synchronized (lock) {
+
+            if (exception != null) {
+                Timber.w("Data failed to send to %s", identifier);
+                return;
+            }
 
             SessionMessageSerializer sender = identifierSenders.get(identifier);
 
@@ -239,6 +244,7 @@ public class SessionManager implements Transport.TransportCallback,
             case CONNECTED:
                 Timber.d("Connected to %s", identifier);
                 if (shouldIdentifyPeer(identifier)) {
+                    identifyingPeers.add(identifier);
                     if (!identifierSenders.containsKey(identifier)) {
                         Timber.d("Sending identity to %s", identifier);
                         identifierSenders.put(identifier, new SessionMessageSerializer(localIdentityMessage));
@@ -313,16 +319,21 @@ public class SessionManager implements Transport.TransportCallback,
                     Peer peer = ((IdentityMessage) message).getPeer();
 
                     boolean newIdentity = !identifiedPeers.containsKey(senderIdentifier);
+                    boolean sentIdentity = identifyingPeers.contains(senderIdentifier);
 
                     identifyingPeers.remove(senderIdentifier);
                     identifiedPeers.put(senderIdentifier, peer);
 
                     if (newIdentity) {
-                        Timber.d("Received identity for %s. Responding with local identity", senderIdentifier);
-                        sendMessage(localIdentityMessage, peer);
+                        Timber.d("Received identity for %s.", senderIdentifier);
                         // As far as upper layers are concerned, connection events occur when the remote
                         // peer is identified.
                         callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED);
+                    }
+
+                    if (!sentIdentity) {
+                        Timber.d("Responding to rx'd identity with local identity");
+                        sendMessage(localIdentityMessage, peer);
                     }
 
                 } else if (identifiedPeers.containsKey(senderIdentifier)) {
