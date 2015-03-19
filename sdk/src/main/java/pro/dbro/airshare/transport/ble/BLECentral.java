@@ -19,8 +19,8 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.widget.Toast;
 
-import org.apache.commons.collections4.BidiMap;
-import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,7 +56,7 @@ public class BLECentral {
     private HashMap<String, HashSet<BluetoothGattCharacteristic>> discoveredCharacteristics = new HashMap<>();
 
     /** Peripheral MAC Address -> Peripheral */
-    private BidiMap<String, BluetoothGatt> connectedDevices = new DualHashBidiMap<>();
+    private BiMap<String, BluetoothGatt> connectedDevices = HashBiMap.create();
 
     /**
      * Peripheral MAC Address -> Peripheral
@@ -149,7 +149,7 @@ public class BLECentral {
         return false;
     }
 
-    public BidiMap<String, BluetoothGatt> getConnectedDeviceAddresses() {
+    public BiMap<String, BluetoothGatt> getConnectedDeviceAddresses() {
         return connectedDevices;
     }
 

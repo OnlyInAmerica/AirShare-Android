@@ -1,10 +1,13 @@
 package pro.dbro.airshare.session;
 
 import android.support.annotation.Nullable;
+import android.util.Pair;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+
+import timber.log.Timber;
 
 /**
  * This class facilitates queuing {@link pro.dbro.airshare.session.SessionMessage}s
@@ -14,8 +17,11 @@ import java.util.List;
  */
 public class SessionMessageSerializer {
 
+    private ArrayList<Pair<Integer, SessionMessage>> completedMessages;
     private ArrayDeque<SessionMessage> messages;
     private int marker;
+    private int serializeCount;
+    private int ackCount;
 
     public SessionMessageSerializer(final SessionMessage message) {
         this(new ArrayList<SessionMessage>() {{ add(message); }});
@@ -24,7 +30,10 @@ public class SessionMessageSerializer {
     public SessionMessageSerializer(List<SessionMessage> messages) {
         this.messages = new ArrayDeque<>();
         this.messages.addAll(messages);
+        this.completedMessages = new ArrayList<>();
         marker = 0;
+        serializeCount = 0;
+        ackCount = 0;
     }
 
     public @Nullable SessionMessage getCurrentMessage() {
@@ -47,26 +56,55 @@ public class SessionMessageSerializer {
      *
      * If {@param length} extends beyond the bytes left in the current message,
      * the result will be a byte[] of lesser length containing the completion of the current message.
-     * This is by design so that when confirmation of that final message chunk arrives, a call to
-     * {@link #getCurrentMessage()} will report the corresponding message.
      */
-    public byte[] readNextChunk(int length) {
+    public byte[] serializeNextChunk(int length) {
         if (messages.size() == 0) return null;
         length = Math.min(length, 500 * 1024);
-
         byte[] result = messages.peek().serialize(marker, length);
 
         if (result == null) {
-
-            messages.poll();
+            Timber.d("Completed %s message", messages.peek().getType());
+            completedMessages.add(new Pair<>(serializeCount, messages.poll()));
             marker = 0;
-            return readNextChunk(length);
+            return serializeNextChunk(length);
 
         } else {
             marker += result.length;
+            serializeCount++;
         }
 
         return result;
+    }
+
+    /**
+     * @return a Pair containing the message delivery progress and the
+     * {@link pro.dbro.airshare.session.SessionMessage} corresponding
+     * to the chunk being acknowledged. Assumes sequential delivery of chunks returned
+     * by {@link #serializeNextChunk(int)}
+     */
+    public @Nullable Pair<SessionMessage, Float> ackChunkDelivery() {
+        ackCount++;
+
+        SessionMessage message = null;
+        float progress = 0;
+
+        for (Pair<Integer, SessionMessage> messagePair : completedMessages) {
+            if (messagePair.first >= ackCount) {
+                message = messagePair.second;
+                progress = ((float) ackCount) / messagePair.first;
+                Timber.d("ackChunkDelivery reporting prev msg progress %f", progress);
+            }
+        }
+
+        if (message == null) {
+            message = messages.peek();
+            progress = getCurrentMessageProgress();
+            Timber.d("ackChunkDelivery reporting current progress %f", progress);
+        }
+
+        if (message == null) return null;
+
+        return new Pair<>(message, progress);
     }
 
 }

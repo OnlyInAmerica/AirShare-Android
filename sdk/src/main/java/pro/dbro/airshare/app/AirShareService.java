@@ -10,11 +10,12 @@ import android.os.Looper;
 import android.os.Message;
 import android.support.annotation.Nullable;
 
-import org.apache.commons.collections4.BidiMap;
-import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -66,8 +67,8 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     private AirShareSenderCallback sCallback;
     private AirSharePeerCallback pCallback;
     private boolean activityRecevingMessages;
-    private BidiMap<Peer, ArrayDeque<OutgoingTransfer>> outPeerTransfers = new DualHashBidiMap<>();
-    private BidiMap<Peer, ArrayDeque<IncomingTransfer>> inPeerTransfers = new DualHashBidiMap<>();
+    private BiMap<Peer, ArrayDeque<OutgoingTransfer>> outPeerTransfers = HashBiMap.create();
+    private BiMap<Peer, ArrayDeque<IncomingTransfer>> inPeerTransfers = HashBiMap.create();
     private Set<IncomingMessageListener> incomingMessageListeners = new HashSet<>();
     private Set<MessageDeliveryListener> messageDeliveryListeners = new HashSet<>();
 
@@ -163,6 +164,10 @@ public class AirShareService extends Service implements ActivityRecevingMessages
             addOutgoingTransfer(new OutgoingTransfer(file, recipient, sessionManager));
         }
 
+        public void offer(InputStream inputStream, int length, String name, Peer recipient) throws FileNotFoundException {
+            addOutgoingTransfer(new OutgoingTransfer(inputStream, name, length, recipient, sessionManager));
+        }
+
         public void offer(byte[] data, Peer recipient) {
             addOutgoingTransfer(new OutgoingTransfer(data, recipient, sessionManager));
         }
@@ -228,12 +233,12 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         }
     }
 
-    private @Nullable IncomingTransfer getIncomingTransferForFileTransferMessage(FileTransferMessage fileMessage,
+    private @Nullable IncomingTransfer getIncomingTransferForFileTransferMessage(SessionMessage transferMessage,
                                                                                  Peer sender) {
 
         IncomingTransfer incomingTransfer = null;
         for (IncomingTransfer transfer : inPeerTransfers.get(sender)) {
-            if (transfer.getFilename().equals(fileMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)))
+            if (transfer.getFilename().equals(transferMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)))
                 incomingTransfer = transfer;
         }
 
@@ -268,24 +273,30 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     }
 
     @Override
-    public void messageReceivingFromPeer(SessionMessage message, Peer recipient, float progress) {
+    public void messageReceivingFromPeer(SessionMessage message, final Peer recipient, final float progress) {
         if (message.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
 
             FileTransferMessage fileMessage = (FileTransferMessage) message;
-            IncomingTransfer incomingTransfer = getIncomingTransferForFileTransferMessage(fileMessage, recipient);
+            final IncomingTransfer incomingTransfer = getIncomingTransferForFileTransferMessage(fileMessage, recipient);
 
             if (incomingTransfer == null) {
                 Timber.w("No OutgoingTransfer for outgoing FileTransferMessage");
             }
 
-            if (rCallback != null)
-                rCallback.onTransferProgress(incomingTransfer, recipient, progress);
+            foregroundHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (rCallback != null)
+                        rCallback.onTransferProgress(incomingTransfer, recipient, progress);
+                }
+            });
+
         }
     }
 
     @Override
-    public void messageReceivedFromPeer(SessionMessage message, Peer sender) {
-
+    public void messageReceivedFromPeer(SessionMessage message, final Peer sender) {
+        Timber.d("Got %s message from %s", message.getType(), sender.getAlias());
         Iterator<IncomingMessageListener> iterator = incomingMessageListeners.iterator();
         IncomingMessageListener listener;
 
@@ -297,7 +308,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         }
 
-            IncomingTransfer incomingTransfer = null;
+            final IncomingTransfer incomingTransfer;
             switch(message.getType()) {
 
                 case FileTransferMessage.HEADER_TYPE_OFFER:
@@ -306,7 +317,12 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
                     addIncomingTransfer(incomingTransfer);
 
-                    if (rCallback != null) rCallback.onTransferOffered(incomingTransfer, sender);
+                    foregroundHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (rCallback != null) rCallback.onTransferOffered(incomingTransfer, sender);
+                        }
+                    });
                     break;
 
                 case FileTransferMessage.HEADER_TYPE_ACCEPT:
@@ -358,7 +374,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
     @Override
     public void messageSentToPeer(SessionMessage message, Peer recipient, Exception exception) {
-
+        Timber.d("Sent %s to %s", message.getType(), recipient.getAlias());
         Iterator<MessageDeliveryListener> iterator = messageDeliveryListeners.iterator();
         MessageDeliveryListener listener;
 

@@ -207,7 +207,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
         byte[] toSend;
         boolean didSendAll = true;
-        while ((toSend = outBuffers.get(identifier).poll()) != null) {
+        while ((toSend = outBuffers.get(identifier).peek()) != null) {
             boolean didSend = false;
             if (central.isConnectedTo(identifier)) {
                 didSend = central.write(toSend, dataCharacteristic.getUuid(), identifier);
@@ -221,10 +221,14 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
                 if (callback.get() != null)
                     callback.get().dataSentToIdentifier(this, toSend, identifier);
+
+                outBuffers.get(identifier).poll();
             } else {
-                Timber.d("Failed to send to %s", identifier);
+                Timber.d("Failed to send %d bytes to %s", toSend.length, identifier);
                 didSendAll = false;
+                break;
             }
+
         }
         return didSendAll;
     }

@@ -9,6 +9,7 @@ import pro.dbro.airshare.session.FileTransferMessage;
 import pro.dbro.airshare.session.Peer;
 import pro.dbro.airshare.session.SessionMessage;
 import pro.dbro.airshare.session.SessionMessageScheduler;
+import timber.log.Timber;
 
 /**
  * An OutgoingTransfer abstracts the sending of a large disk-based asset transfer, which
@@ -110,7 +111,7 @@ public class OutgoingTransfer implements IncomingMessageListener, MessageDeliver
     @Override
     public boolean onMessageReceived(SessionMessage message, Peer recipient) {
         if (state == State.AWAITING_ACCEPT) {
-
+            Timber.d("Got filetransfer accept!");
             FileTransferMessage fileTransferMessage = (FileTransferMessage) message;
 
             // TODO : Need a FileTransferRequest id. Something unique per offer-accept-transfer group
@@ -120,6 +121,7 @@ public class OutgoingTransfer implements IncomingMessageListener, MessageDeliver
                 fileTransferMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)
                     .equals(offerMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME))) {
 
+                Timber.d("Sending transfer");
                 messageSender.sendMessage(transferMessage, recipient);
 
                 state = State.AWAITING_TRANSFER_ACK;

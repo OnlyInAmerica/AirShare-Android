@@ -18,8 +18,8 @@ import android.content.Context;
 import android.os.ParcelUuid;
 import android.support.annotation.NonNull;
 
-import org.apache.commons.collections4.BidiMap;
-import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -38,7 +38,7 @@ public class BLEPeripheral {
 
     private Set<BluetoothGattCharacteristic> characterisitics = new HashSet<>();
     /** Map of connected device addresses to devices */
-    private BidiMap<String, BluetoothDevice> connectedDevices = new DualHashBidiMap<>();
+    private BiMap<String, BluetoothDevice> connectedDevices = HashBiMap.create();
 
     public interface BLEPeripheralConnectionGovernor {
         public boolean shouldConnectToCentral(BluetoothDevice potentialPeer);
@@ -154,7 +154,7 @@ public class BLEPeripheral {
         return connectedDevices.containsKey(deviceAddress);
     }
 
-    public BidiMap<String, BluetoothDevice> getConnectedDeviceAddresses() {
+    public BiMap<String, BluetoothDevice> getConnectedDeviceAddresses() {
         return connectedDevices;
     }
 

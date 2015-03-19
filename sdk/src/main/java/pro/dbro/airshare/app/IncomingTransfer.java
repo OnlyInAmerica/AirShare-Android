@@ -1,5 +1,8 @@
 package pro.dbro.airshare.app;
 
+import android.support.annotation.Nullable;
+
+import java.io.IOException;
 import java.io.InputStream;
 
 import pro.dbro.airshare.session.FileTransferMessage;
@@ -70,6 +73,24 @@ public class IncomingTransfer implements IncomingMessageListener, MessageDeliver
 
     public InputStream getBody() {
         return transferMessage.getBody();
+    }
+
+    public @Nullable byte[] getBodyBytes() {
+        int bodySize = (int) transferMessage.getBodyLengthBytes();
+
+        byte[] body = new byte[bodySize];
+
+        try {
+            transferMessage.getBody().read(body, 0, bodySize);
+            return body;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public long getBodyLengthBytes() {
+        return messageAwaitingAccept.getBodyLengthBytes();
     }
 
     public boolean isComplete() {
