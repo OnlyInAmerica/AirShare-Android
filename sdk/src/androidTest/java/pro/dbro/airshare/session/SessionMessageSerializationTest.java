@@ -52,13 +52,19 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
 
     private void initializeDataTransferMessage(List<SessionMessage> messages) {
 
-        byte[] payload = ("And the end of all our exploring\n"   +
-                          "Will be to arrive where we started\n" +
-                          "And know the place for the first time.").getBytes();
+        byte[] shortPayload = ("And the end of all our exploring\n"   +
+                               "Will be to arrive where we started\n" +
+                               "And know the place for the first time.").getBytes();
 
-        DataTransferMessage dataTransferMessage = new DataTransferMessage(payload);
+        // Longer DataTransferMessage will stress SessionMessageDeserializer buffer resizing
+        byte[] longPayload = new byte[16000];
 
-        messages.add(dataTransferMessage);
+
+        DataTransferMessage shortDataTransferMessage = new DataTransferMessage(shortPayload);
+        DataTransferMessage longDataTransferMessage = new DataTransferMessage(longPayload);
+
+        messages.add(shortDataTransferMessage);
+        messages.add(longDataTransferMessage);
     }
 
     private void initializeFileTransferMessages(List<SessionMessage> messages) throws IOException {
@@ -126,6 +132,7 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
         final AtomicInteger headerReadyCount = new AtomicInteger(0);
         final AtomicInteger onCompleteCount = new AtomicInteger(0);
         final AtomicDouble lastProgress = new AtomicDouble(0);
+        final AtomicInteger serializedBytes = new AtomicInteger(0);
 
         SessionMessageSerializer sender = new SessionMessageSerializer(messages);
 
@@ -149,6 +156,7 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
                     @Override
                     public void onComplete(SessionMessageDeserializer receiver, SessionMessage deserializedMessage, Exception e) {
                         Timber.d("Deserialized Message " + deserializedMessage.getHeaders().get(SessionMessage.HEADER_TYPE));
+                        Timber.d("%d serialized bytes", serializedBytes.get());
 
                         SessionMessage originalMessage = messages.get(onCompleteCount.getAndIncrement());
                         assertEquals(originalMessage, deserializedMessage);
@@ -161,8 +169,9 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
 
         while (true) {
             byte[] chunk = sender.serializeNextChunk(BLETransport.DEFAULT_MTU_BYTES);
-
             if (chunk == null) break;
+
+            serializedBytes.addAndGet(chunk.length);
 
             receiver.dataReceived(chunk);
 

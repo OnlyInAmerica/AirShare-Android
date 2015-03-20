@@ -53,6 +53,9 @@ public class SessionMessageDeserializer {
 
     }
 
+    /** Bodies over this size will be stored on disk */
+    private static final int BODY_SIZE_CUTOFF_BYTES = 2 * 1000 * 1000; // 2 MB
+
     private Context                            context;
     private ByteBuffer                         buffer;
     private SessionMessageDeserializerCallback callback;
@@ -69,7 +72,6 @@ public class SessionMessageDeserializer {
     private boolean gotBodyBoundary;
 
     private int headerLength;
-    private int dataBytesProcessed;
     private int bodyLength;
     private int bodyBytesReceived;
 
@@ -116,7 +118,7 @@ public class SessionMessageDeserializer {
      * @param data sequential chunk of a serialized {@link pro.dbro.airshare.session.SessionMessage}
      */
     public void dataReceived(byte[] data) {
-        dataBytesProcessed = 0;
+        int dataBytesProcessed = 0;
 
         if (data.length > buffer.capacity() - buffer.position())
             resizeBuffer(data.length);
@@ -129,7 +131,7 @@ public class SessionMessageDeserializer {
              */
             if (gotHeaderLength && buffer.position() >= getPrefixAndHeaderLengthBytes()) {
 
-                if (sessionMessage.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
+                if (bodyLength > BODY_SIZE_CUTOFF_BYTES) {
 
                     if (bodyStream == null) prepareBodyOutputStream();
 
@@ -237,7 +239,7 @@ public class SessionMessageDeserializer {
             try {
                 int bodyBytesJustReceived = data.length - dataBytesProcessed;
 
-                if (sessionMessage instanceof FileTransferMessage) {
+                if (bodyLength > BODY_SIZE_CUTOFF_BYTES) {
 
                     if (bodyStream == null) prepareBodyOutputStream();
 
@@ -302,6 +304,8 @@ public class SessionMessageDeserializer {
 
     private void resizeBuffer(int minLength) {
         ByteBuffer newBuffer = ByteBuffer.allocate(Math.max(minLength, (int) (buffer.capacity() * 1.5)));
+        buffer.limit(buffer.position());
+        buffer.position(0);
         newBuffer.put(buffer);
         buffer = newBuffer;
     }
