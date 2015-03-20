@@ -304,6 +304,8 @@ public class SessionManager implements Transport.TransportCallback,
 
         String senderIdentifier = identifierReceivers.inverse().get(receiver);
         Timber.d("Received %s message with progress %f from %s", message.getType(), progress, senderIdentifier);
+
+        callback.messageReceivingFromPeer(message, identifiedPeers.get(senderIdentifier), progress);
     }
 
     @Override

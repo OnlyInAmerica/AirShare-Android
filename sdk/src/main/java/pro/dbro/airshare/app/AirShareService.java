@@ -349,7 +349,12 @@ public class AirShareService extends Service implements ActivityRecevingMessages
                         break;
                     }
 
-                    if (rCallback != null) rCallback.onTransferComplete(incomingTransfer, sender, null);
+                    foregroundHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (rCallback != null) rCallback.onTransferComplete(incomingTransfer, sender, null);
+                        }
+                    });
 
                     break;
             }

@@ -111,7 +111,7 @@ public abstract class SessionMessage {
     /**
      * @return the length of the blob body in bytes
      */
-    public long getBodyLengthBytes() {
+    public int getBodyLengthBytes() {
         return bodyLengthBytes;
     }
 

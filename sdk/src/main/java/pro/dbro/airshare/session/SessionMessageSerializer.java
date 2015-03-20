@@ -63,7 +63,8 @@ public class SessionMessageSerializer {
         byte[] result = messages.peek().serialize(marker, length);
 
         if (result == null) {
-            Timber.d("Completed %s message", messages.peek().getType());
+            Timber.d("Completed %s message (%d / %d bytes)", messages.peek().getType(),
+                    marker, messages.peek().getTotalLengthBytes());
             completedMessages.add(new Pair<>(serializeCount, messages.poll()));
             marker = 0;
             return serializeNextChunk(length);
@@ -71,7 +72,7 @@ public class SessionMessageSerializer {
         } else {
             marker += result.length;
             serializeCount++;
-            Timber.d("serializeNextChunk");
+            //Timber.d("serializeNextChunk");
         }
 
         return result;

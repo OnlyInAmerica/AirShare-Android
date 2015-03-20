@@ -1,12 +1,14 @@
 package pro.dbro.airshare.session;
 
 import android.content.Context;
+import android.provider.ContactsContract;
 import android.support.annotation.Nullable;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -270,14 +272,26 @@ public class SessionMessageDeserializer {
             // Construct appropriate SessionMessage or child object
             try {
 
-                if (sessionMessage.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
-                    ((FileTransferMessage) sessionMessage).setBody(new FileInputStream(bodyFile));
+                if (bodyLength > BODY_SIZE_CUTOFF_BYTES) {
 
-                } else if (sessionMessage instanceof DataTransferMessage) {
+                    if (sessionMessage.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
+                        ((FileTransferMessage) sessionMessage).setBody(new FileInputStream(bodyFile));
+
+                    } else if (sessionMessage instanceof DataTransferMessage) {
+                        // TODO This shouldn't happen. We should enforce an upper limit on DataTransferMessage
+                        throw new UnsupportedOperationException("Cannot have a disk-backed DataTransferMessage");
+                    }
+                } else {
                     byte[] body = new byte[bodyLength];
                     buffer.position(getPrefixAndHeaderLengthBytes());
                     buffer.get(body, 0, bodyLength);
-                    ((DataTransferMessage) sessionMessage).setBody(body);
+
+                    if (sessionMessage.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
+                        ((FileTransferMessage) sessionMessage).setBody(new ByteArrayInputStream(body));
+
+                    } else if (sessionMessage instanceof DataTransferMessage) {
+                        ((DataTransferMessage) sessionMessage).setBody(body);
+                    }
                 }
 
                 if (callback != null) callback.onComplete(this, sessionMessage, null);

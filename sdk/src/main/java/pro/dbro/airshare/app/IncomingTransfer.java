@@ -9,6 +9,7 @@ import pro.dbro.airshare.session.FileTransferMessage;
 import pro.dbro.airshare.session.Peer;
 import pro.dbro.airshare.session.SessionMessage;
 import pro.dbro.airshare.session.SessionMessageScheduler;
+import timber.log.Timber;
 
 /**
  * Facilitates responding to incoming transfer requests that require user acceptance to proceed.
@@ -93,6 +94,10 @@ public class IncomingTransfer implements IncomingMessageListener, MessageDeliver
         return messageAwaitingAccept.getBodyLengthBytes();
     }
 
+    public int getOfferLengthBytes() {
+        return (int) messageAwaitingAccept.getHeaders().get(FileTransferMessage.HEADER_OFFER_LENGTH);
+    }
+
     public boolean isComplete() {
         return state == State.COMPLETE;
     }
@@ -128,6 +133,8 @@ public class IncomingTransfer implements IncomingMessageListener, MessageDeliver
             if (fileTransferMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)
                     .equals(messageAwaitingAck.getHeaders().get(FileTransferMessage.HEADER_FILENAME))) {
 
+                Timber.d("Got transfer message. now complete");
+                transferMessage = fileTransferMessage;
                 state = State.COMPLETE;
 
                 return false;
@@ -147,6 +154,7 @@ public class IncomingTransfer implements IncomingMessageListener, MessageDeliver
         if (state == State.AWAITING_ACCEPT_ACK && messageAwaitingAck != null && messageAwaitingAck.equals(message)) {
 
             state = State.AWAITING_TRANSFER;
+            Timber.d("Got Accept ack. Awaiting transfer");
 
             return false;
         }

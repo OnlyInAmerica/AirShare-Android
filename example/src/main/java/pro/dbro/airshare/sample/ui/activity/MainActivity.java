@@ -36,6 +36,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.text.DecimalFormat;
 
 import pro.dbro.airshare.app.AirShareService;
 import pro.dbro.airshare.app.IncomingTransfer;
@@ -180,10 +181,13 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         if (serviceBinder != null) {
             Timber.d("Offering data to %s", peer.getAlias());
             recipientPeer = peer;
+
+            // Uncomment to do file transfer
             performFileSearch();
-            //serviceBinder.offer("Oh my god".getBytes(), peer);
+
+            // Uncomment to do data transfer
+            //serviceBinder.offer(new byte[16000], peer);
         }
-        // Connect to peer, or whatever
     }
 
     private final BroadcastReceiver mBluetoothBroadcastReceiver = new BroadcastReceiver() {
@@ -307,10 +311,10 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
 
         new AlertDialog.Builder(this)
                 .setTitle("Transfer Offered")
-                .setMessage(String.format("%s would like to send %s (%f MB)",
+                .setMessage(String.format("%s would like to send %s (%s)",
                                           sender.getAlias(),
                                           transfer.getFilename(),
-                                          transfer.getBodyLengthBytes() / 1024f))
+                                          readableFileSize(transfer.getOfferLengthBytes())))
                 .setPositiveButton("Accept", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
@@ -329,7 +333,8 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
 
     @Override
     public void onTransferProgress(IncomingTransfer transfer, Peer sender, float progress) {
-        this.progress.setProgress((int) progress * this.progress.getMax());
+        Timber.d("Transfer progress " + progress);
+        this.progress.setProgress((int) (progress * this.progress.getMax()));
     }
 
     @Override
@@ -342,7 +347,6 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
             Bitmap bitmap = decodeSampledBitmapFromInputStream(transfer.getBody(), 640, 480);
             ImageView imageView = new ImageView(this);
             imageView.setImageBitmap(bitmap);
-            String payloadStr = new String(transfer.getBodyBytes());
             new AlertDialog.Builder(this)
                     .setView(imageView)
                     .show();
@@ -501,5 +505,12 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         }
 
         return inSampleSize;
+    }
+
+    public static String readableFileSize(long size) {
+        if(size <= 0) return "0";
+        final String[] units = new String[] { "B", "kB", "MB", "GB", "TB" };
+        int digitGroups = (int) (Math.log10(size)/Math.log10(1024));
+        return new DecimalFormat("#,##0.#").format(size/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
     }
 }
