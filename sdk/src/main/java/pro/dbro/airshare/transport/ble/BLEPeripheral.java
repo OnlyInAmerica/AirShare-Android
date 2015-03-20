@@ -57,6 +57,8 @@ public class BLEPeripheral {
 
     private boolean isAdvertising = false;
 
+    private byte[] lastNotified;
+
     /** Advertise Callback */
     private AdvertiseCallback mAdvCallback = new AdvertiseCallback() {
         @Override
@@ -115,7 +117,12 @@ public class BLEPeripheral {
         characterisitics.add(characteristic);
     }
 
-
+    /**
+     * Send data to the central at deviceAddress. If the return value of this function
+     * indicates the indicate was successful, another indicate must not be requested until
+     * {@link pro.dbro.airshare.transport.ble.BLETransportCallback#dataSentToIdentifier(pro.dbro.airshare.transport.ble.BLETransportCallback.DeviceType, byte[], String, Exception)}
+     * is called.
+     */
     public boolean indicate(byte[] data,
                             UUID characteristicUuid,
                             String deviceAddress) {
@@ -144,6 +151,7 @@ public class BLEPeripheral {
             boolean success = gattServer.notifyCharacteristicChanged(recipient,
                                                                      targetCharacteristic,
                                                                      true);
+            if (success) lastNotified = data;
             Timber.d("Notified %d bytes to %s with success %b", data.length, deviceAddress, success);
             return success;
         }
@@ -310,7 +318,7 @@ public class BLEPeripheral {
 
             @Override
             public void onNotificationSent(BluetoothDevice device, int status) {
-
+                Timber.d("onNotificationSent");
                 Exception exception = null;
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     String msg = "notify not successful with code " + status;
@@ -320,7 +328,7 @@ public class BLEPeripheral {
 
                 if (transportCallback != null)
                     transportCallback.dataSentToIdentifier(BLETransportCallback.DeviceType.PERIPHERAL,
-                                                           null, /** data */
+                                                           lastNotified,
                                                            device.getAddress(),
                                                            exception);
             }
