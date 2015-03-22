@@ -277,10 +277,13 @@ public class SessionManager implements Transport.TransportCallback,
             case DISCONNECTED:
                 Timber.d("Disconnected from %s", identifier);
                 identifyingPeers.remove(identifier);
-                // We should maintain (in memory) identifiedPeers and identifierTransports
-                // in case an identifier re-appears shortly
+
                 if (identifiedPeers.containsKey(identifier))
                     callback.peerStatusUpdated(identifiedPeers.get(identifier), Transport.ConnectionStatus.DISCONNECTED);
+
+                identifiedPeers.remove(identifier);
+                identifierSenders.remove(identifier);
+                identifierReceivers.remove(identifier);
                 break;
         }
     }
