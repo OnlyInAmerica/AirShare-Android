@@ -23,6 +23,7 @@ import java.util.Set;
 
 import pro.dbro.airshare.crypto.KeyPair;
 import pro.dbro.airshare.crypto.SodiumShaker;
+import pro.dbro.airshare.session.DataTransferMessage;
 import pro.dbro.airshare.session.FileTransferMessage;
 import pro.dbro.airshare.session.LocalPeer;
 import pro.dbro.airshare.session.Peer;
@@ -310,6 +311,18 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
             final IncomingTransfer incomingTransfer;
             switch(message.getType()) {
+
+                case DataTransferMessage.HEADER_TYPE:
+
+                    incomingTransfer = new IncomingTransfer((DataTransferMessage) message, sender);
+                    // No action is required for DataTransferMessage. Report complete
+                    foregroundHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (rCallback != null) rCallback.onTransferComplete(incomingTransfer, sender, null);
+                        }
+                    });
+                    break;
 
                 case FileTransferMessage.HEADER_TYPE_OFFER:
                     // An incoming transfer offer

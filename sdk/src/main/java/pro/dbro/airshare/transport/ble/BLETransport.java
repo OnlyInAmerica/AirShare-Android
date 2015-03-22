@@ -72,8 +72,8 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
         super(serviceName, callback);
 
-        serviceUUID = UUID.fromString("B491602C-C912-47AE-B639-9C17A4AADB06");
-        /* generateUUIDFromString(serviceName); */
+        serviceUUID = generateUUIDFromString(serviceName);
+        //serviceUUID = UUID.fromString("B491602C-C912-47AE-B639-9C17A4AADB06");
 
         dataCharacteristic.addDescriptor(new BluetoothGattDescriptor(BLECentral.CLIENT_CHARACTERISTIC_CONFIG,
                                                                      BluetoothGattDescriptor.PERMISSION_WRITE |
