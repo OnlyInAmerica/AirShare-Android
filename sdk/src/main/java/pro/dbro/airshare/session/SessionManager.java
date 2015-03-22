@@ -1,18 +1,15 @@
 package pro.dbro.airshare.session;
 
 import android.content.Context;
-import android.os.*;
 import android.support.annotation.Nullable;
 import android.util.Pair;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import com.google.common.collect.Maps;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import pro.dbro.airshare.transport.Transport;

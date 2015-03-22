@@ -3,12 +3,8 @@ package pro.dbro.airshare.session;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
-import java.io.BufferedInputStream;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
-
-import timber.log.Timber;
 
 /**
  * Created by davidbrodsky on 2/22/15.

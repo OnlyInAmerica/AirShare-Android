@@ -3,7 +3,6 @@ package pro.dbro.airshare.transport;
 import android.support.annotation.Nullable;
 
 import java.lang.ref.WeakReference;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 

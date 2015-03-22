@@ -2,7 +2,6 @@ package pro.dbro.airshare.sample;
 
 import android.app.Application;
 
-import pro.dbro.airshare.Logging;
 import timber.log.Timber;
 
 /**

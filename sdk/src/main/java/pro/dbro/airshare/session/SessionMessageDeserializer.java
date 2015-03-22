@@ -1,7 +1,6 @@
 package pro.dbro.airshare.session;
 
 import android.content.Context;
-import android.provider.ContactsContract;
 import android.support.annotation.Nullable;
 
 import org.json.JSONArray;

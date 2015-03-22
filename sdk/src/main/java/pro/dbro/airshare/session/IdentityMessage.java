@@ -7,8 +7,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import pro.dbro.airshare.DataUtil;
-
 /**
  * Created by davidbrodsky on 2/22/15.
  */

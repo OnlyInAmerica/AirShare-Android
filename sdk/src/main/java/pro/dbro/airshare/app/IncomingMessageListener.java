@@ -1,7 +1,6 @@
 package pro.dbro.airshare.app;
 
 import pro.dbro.airshare.session.Peer;
-import pro.dbro.airshare.session.SessionManager;
 import pro.dbro.airshare.session.SessionMessage;
 
 /**

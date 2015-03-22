@@ -16,7 +16,6 @@ import android.widget.TextView;
 
 import pro.dbro.airshare.app.AirShareService;
 import pro.dbro.airshare.session.LocalPeer;
-import pro.dbro.airshare.session.Peer;
 import pro.dbro.airshare.transport.ble.BLEUtil;
 import timber.log.Timber;
 
