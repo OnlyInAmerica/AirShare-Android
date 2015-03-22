@@ -86,10 +86,27 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
     @Override
     public void onStop() {
         super.onStop();
-        if (!serviceBound) {
+        if (serviceBound) {
             unBindService();
-            unregisterReceiver(mBluetoothBroadcastReceiver);
+            unregisterBroadcastReceiver();
+
+            if (!shouldServiceContinueInBackground())
+                stopService();
         }
+    }
+
+    /**
+     * @return whether the AirShareService should remain active after {@link #onStop()}
+     * if false, the service will be re-started on {@link #onStart()}
+     */
+    public boolean shouldServiceContinueInBackground() {
+        return false;
+    }
+
+    public void stopService() {
+        Timber.d("Stopping service");
+        Intent intent = new Intent(this, AirShareService.class);
+        stopService(intent);
     }
 
     private void startAndBindToService() {
@@ -172,8 +189,10 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
     }
 
     private void unregisterBroadcastReceiver() {
-        this.unregisterReceiver(mBluetoothBroadcastReceiver);
-        bluetoothReceiverRegistered = false;
+        if (bluetoothReceiverRegistered) {
+            this.unregisterReceiver(mBluetoothBroadcastReceiver);
+            bluetoothReceiverRegistered = false;
+        }
     }
 
     private void showEnableBluetoothDialog() {
