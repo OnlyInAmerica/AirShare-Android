@@ -2,6 +2,7 @@ package pro.dbro.airshare.sample.ui.adapter;
 
 import android.content.Context;
 import android.support.v7.widget.RecyclerView;
+import android.util.Base64;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -69,7 +70,9 @@ public class PeerAdapter extends RecyclerView.Adapter<PeerAdapter.ViewHolder> {
         // - get element from your dataset at this position
         // - replace the contents of the view with that element
         Peer peer = peers.get(position);
-        holder.mTextView.setText(peer.getAlias());
+        holder.mTextView.setText(peer.getAlias() == null ?
+                                    "Unnamed (key=" + Base64.encodeToString(peer.getPublicKey(), Base64.DEFAULT).substring(0, 5) + "...)" :
+                                    peer.getAlias());
         holder.mTextView.setTag(peer);
 
     }
