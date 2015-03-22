@@ -40,6 +40,7 @@ import java.text.DecimalFormat;
 
 import pro.dbro.airshare.app.AirShareService;
 import pro.dbro.airshare.app.IncomingTransfer;
+import pro.dbro.airshare.app.ui.AirShareActivity;
 import pro.dbro.airshare.sample.AirShareSampleApp;
 import pro.dbro.airshare.sample.R;
 import pro.dbro.airshare.sample.ui.fragment.PeerFragment;
@@ -51,24 +52,20 @@ import pro.dbro.airshare.transport.ble.BLEUtil;
 import timber.log.Timber;
 
 
-public class MainActivity extends Activity implements WelcomeFragment.WelcomeFragmentListener,
-                                                      PeerFragment.PeerFragmentListener,
-                                                      ServiceConnection,
-                                                      AirShareService.AirSharePeerCallback,
-                                                      AirShareService.AirShareReceiverCallback {
+public class MainActivity extends AirShareActivity implements WelcomeFragment.WelcomeFragmentListener,
+                                                              PeerFragment.PeerFragmentListener,
+                                                              AirShareActivity.AirShareCallback,
+                                                              AirShareService.AirSharePeerCallback,
+                                                              AirShareService.AirShareReceiverCallback {
 
     private static final int READ_REQUEST_CODE = 42;
 
-    private PeerFragment peerFragment;
     private AirShareService.ServiceBinder serviceBinder;
-    private boolean serviceBound = false;  // Are we bound to the ChatService?
-    private boolean bluetoothReceiverRegistered = false; // Are we registered for Bluetooth status broadcasts?
+
+    private PeerFragment peerFragment;
 
     private FloatingActionButton fab;
 
-    private AlertDialog mBluetoothEnableDialog;
-
-    private LocalPeer localPeer;
     private Peer recipientPeer;
 
     private ProgressBar progress;
@@ -76,6 +73,7 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setAirShareCallback(this);
         setContentView(R.layout.activity_main);
 
         fab = (FloatingActionButton) findViewById(R.id.fab);
@@ -87,39 +85,9 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
             }
         });
 
+        setAirShareCallback(this);
+
         progress = (ProgressBar) findViewById(R.id.progress);
-    }
-
-    @Override
-    public void onStart() {
-        super.onStart();
-        if (!serviceBound) {
-            startAndBindToService();
-        }
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        if (serviceBinder != null) {
-            serviceBinder.setActivityReceivingMessages(true);
-        }
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        if (serviceBinder != null) {
-            serviceBinder.setActivityReceivingMessages(false);
-        }
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-        if (!serviceBound) {
-            unBindService();
-        }
     }
 
     private void showPeerFragment() {
@@ -140,17 +108,6 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, new WelcomeFragment())
                 .commit();
-    }
-
-    private void startAndBindToService() {
-        Timber.d("Starting service");
-        Intent intent = new Intent(this, AirShareService.class);
-        startService(intent);
-        bindService(intent, this, 0);
-    }
-
-    private void unBindService() {
-        unbindService(this);
     }
 
     @Override
@@ -190,114 +147,12 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         }
     }
 
-    private final BroadcastReceiver mBluetoothBroadcastReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-
-            if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
-                final int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE,
-                        BluetoothAdapter.ERROR);
-                switch (state) {
-                    case BluetoothAdapter.STATE_OFF:
-                        break;
-                    case BluetoothAdapter.STATE_TURNING_OFF:
-                        break;
-                    case BluetoothAdapter.STATE_ON:
-                        if (mBluetoothEnableDialog != null && mBluetoothEnableDialog.isShowing()) {
-                            mBluetoothEnableDialog.dismiss();
-                        }
-                        Timber.d("Bluetooth enabled");
-                        checkDevicePreconditions();
-                        break;
-                    case BluetoothAdapter.STATE_TURNING_ON:
-                        break;
-                }
-            }
-        }
-    };
-
-    @Override
-    public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
-        serviceBinder = (AirShareService.ServiceBinder) iBinder;
-        serviceBound = true;
-        Timber.d("Bound to service");
-        checkDevicePreconditions();
-
-        serviceBinder.setActivityReceivingMessages(true);
-
-//        ((Switch) findViewById(R.id.onlineSwitch)).setChecked(true);
-//        findViewById(R.id.onlineSwitch).setEnabled(true);
-    }
-
-    @Override
-    public void onServiceDisconnected(ComponentName componentName) {
-        Timber.d("Unbound from service");
-        serviceBinder = null;
-        serviceBound = false;
-//        ((Switch) findViewById(R.id.onlineSwitch)).setChecked(false);
-    }
-
-    private void checkDevicePreconditions() {
-        if (!BLEUtil.isBluetoothEnabled(this)) {
-            // Bluetooth is not Enabled.
-            // await result in OnActivityResult
-            registerBroadcastReceiver();
-            showEnableBluetoothDialog();
-        } else {
-            // Bluetooth Enabled, Check if primary identity is created
-            // TODO : Persist localPeer
-            localPeer = serviceBinder.getLocalPeer();
-            if (localPeer == null) {
-                showWelcomeFragment();
-            } else {
-                serviceBinder.scanForOtherUsers();
-                showPeerFragment();
-            }
-        }
-    }
-
-    private void registerBroadcastReceiver() {
-        IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-        this.registerReceiver(mBluetoothBroadcastReceiver, filter);
-        bluetoothReceiverRegistered = true;
-    }
-
-    private void showEnableBluetoothDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Enable Bluetooth")
-                .setMessage("This app requires Bluetooth on to function. May we enable Bluetooth?")
-                .setPositiveButton("Enable Bluetooth", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialogInterface, int i) {
-                        mBluetoothEnableDialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
-                        mBluetoothEnableDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
-                        ((TextView) mBluetoothEnableDialog.findViewById(android.R.id.message)).setText("Enabling...");
-                        BLEUtil.getManager(MainActivity.this).getAdapter().enable();
-                    }
-                })
-                .setNegativeButton("No", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialogInterface, int i) {
-                        MainActivity.this.finish();
-                    }
-                });
-        builder.setCancelable(false);
-        mBluetoothEnableDialog = builder.create();
-
-        mBluetoothEnableDialog.show();
-    }
-
     @Override
     public void onUsernameSelected(String username) {
         Timber.d("Username selected %s", username);
 
-        serviceBinder.registerLocalUserWithService(username, AirShareSampleApp.AIR_SHARE_SERVICE_NAME);
-        serviceBinder.setPeerCallback(this);
-        serviceBinder.setReceiverCallback(this);
-        serviceBinder.scanForOtherUsers();
-
-        showPeerFragment();
+        registerUserForService(username, AirShareSampleApp.AIR_SHARE_SERVICE_NAME);
+        // await onServiceReady callback
     }
 
     @Override
@@ -400,9 +255,8 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
                     // The query, since it only applies to a single document, will only return
                     // one row. There's no need to filter, sort, or select fields, since we want
                     // all fields for one document.
-                    Cursor cursor = getContentResolver().query(uri, null, null, null, null, null);
 
-                    try {
+                    try (Cursor cursor = getContentResolver().query(uri, null, null, null, null, null)) {
                         // moveToFirst() returns false if the cursor has 0 rows.  Very handy for
                         // "if there's anything to look at, look at it" conditionals.
                         if (cursor != null && cursor.moveToFirst()) {
@@ -442,8 +296,6 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
 
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
-                    } finally {
-                        cursor.close();
                     }
                 }
             }
@@ -512,5 +364,23 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         final String[] units = new String[] { "B", "kB", "MB", "GB", "TB" };
         int digitGroups = (int) (Math.log10(size)/Math.log10(1024));
         return new DecimalFormat("#,##0.#").format(size/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+    }
+
+    @Override
+    public void registrationRequired() {
+        Timber.d("registrationRequired");
+        showWelcomeFragment();
+    }
+
+    @Override
+    public void onServiceReady(AirShareService.ServiceBinder serviceBinder) {
+        Timber.d("onServiceReady");
+        this.serviceBinder = serviceBinder;
+
+        serviceBinder.setPeerCallback(this);
+        serviceBinder.setReceiverCallback(this);
+        serviceBinder.scanForOtherUsers();
+
+        showPeerFragment();
     }
 }
