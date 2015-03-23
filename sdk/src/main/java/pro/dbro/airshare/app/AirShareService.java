@@ -103,6 +103,12 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     }
 
     @Override
+    public void onDestroy() {
+        sessionManager.stop();
+        backgroundLooper.quit();
+    }
+
+    @Override
     public IBinder onBind(Intent intent) {
         if (binder == null) binder = new ServiceBinder();
         Timber.d("Bind service");
