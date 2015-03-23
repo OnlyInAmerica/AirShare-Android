@@ -19,7 +19,7 @@ public class DataTransferMessage extends SessionMessage {
                                @Nullable byte[] body) {
 
         super((String) headers.get(SessionMessage.HEADER_ID));
-
+        init();
         this.headers      = headers;
         bodyLengthBytes   = (int) headers.get(HEADER_BODY_LENGTH);
         status            = body == null ? Status.HEADER_ONLY : Status.COMPLETE;
@@ -33,11 +33,15 @@ public class DataTransferMessage extends SessionMessage {
 
     public DataTransferMessage(byte[] data) {
         super();
+        init();
         setBody(data);
-        type = HEADER_TYPE;
         bodyLengthBytes = data.length;
         serializeAndCacheHeaders();
 
+    }
+
+    private void init() {
+        type = HEADER_TYPE;
     }
 
     public void setBody(@NonNull byte[] body) {

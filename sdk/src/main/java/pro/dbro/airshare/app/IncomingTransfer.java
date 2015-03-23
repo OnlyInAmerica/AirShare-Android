@@ -2,9 +2,11 @@ package pro.dbro.airshare.app;
 
 import android.support.annotation.Nullable;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+import pro.dbro.airshare.session.DataTransferMessage;
 import pro.dbro.airshare.session.FileTransferMessage;
 import pro.dbro.airshare.session.Peer;
 import pro.dbro.airshare.session.SessionMessage;
@@ -42,13 +44,19 @@ public class IncomingTransfer implements IncomingMessageListener, MessageDeliver
 
     private Peer sender;
     private SessionMessageScheduler messageSender;
-    private FileTransferMessage transferMessage;
+    private SessionMessage transferMessage;
     private FileTransferMessage messageAwaitingAccept;
     private SessionMessage messageAwaitingAck;
     private State state;
 
 
     // <editor-fold desc="Incoming Constructors">
+
+    public IncomingTransfer(DataTransferMessage dataMessage, Peer sender) {
+
+        this.sender = sender;
+        transferMessage = dataMessage;
+    }
 
     public IncomingTransfer(FileTransferMessage fileMessage, Peer sender, SessionMessageScheduler messageSender) {
 
@@ -72,17 +80,30 @@ public class IncomingTransfer implements IncomingMessageListener, MessageDeliver
         return sender;
     }
 
-    public InputStream getBody() {
-        return transferMessage.getBody();
+    public @Nullable InputStream getBody() {
+        if (transferMessage instanceof FileTransferMessage)
+            return ((FileTransferMessage) transferMessage).getBody();
+        else if (transferMessage instanceof DataTransferMessage)
+            return new ByteArrayInputStream(getBodyBytes());
+
+        return null;
     }
 
     public @Nullable byte[] getBodyBytes() {
         int bodySize = (int) transferMessage.getBodyLengthBytes();
 
-        byte[] body = new byte[bodySize];
+        byte[] body = null;
 
         try {
-            transferMessage.getBody().read(body, 0, bodySize);
+            if (transferMessage instanceof FileTransferMessage) {
+                body = new byte[bodySize];
+                ((FileTransferMessage) transferMessage).getBody().read(body, 0, bodySize);
+            }
+            // DataTransferMessage is the only type that we should allow completely loading
+            // the body into memory. Rely on DataTransferMesssage to enforce some maximum size
+            else if (transferMessage instanceof DataTransferMessage) {
+                body = transferMessage.getBodyAtOffset(0, transferMessage.getBodyLengthBytes());
+            }
             return body;
         } catch (IOException e) {
             e.printStackTrace();
