@@ -11,9 +11,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import pro.dbro.airshare.transport.Transport;
 import pro.dbro.airshare.transport.ble.BLETransport;
+import pro.dbro.airshare.transport.wifi.WifiTransport;
 import timber.log.Timber;
 
 /**
@@ -43,7 +46,7 @@ public class SessionManager implements Transport.TransportCallback,
     private LocalPeer                                 localPeer;
     private IdentityMessage                           localIdentityMessage;
     private SessionManagerCallback                    callback;
-    private HashMap<String, Set<Transport>>           identifierTransports  = new HashMap<>();
+    private HashMap<String, SortedSet<Transport>>     identifierTransports  = new HashMap<>();
     private BiMap<String, SessionMessageDeserializer> identifierReceivers   = HashBiMap.create();
     private BiMap<String, SessionMessageSerializer>   identifierSenders     = HashBiMap.create();
     private final BiMap<String, Peer>                 identifiedPeers       = HashBiMap.create();
@@ -129,10 +132,10 @@ public class SessionManager implements Transport.TransportCallback,
     private void initializeTransports(String serviceName) {
         transports = new HashSet<>();
         transports.add(new BLETransport(context, serviceName, this));
+        transports.add(new WifiTransport(context, serviceName, this));
     }
 
     private @Nullable Transport getPreferredTransportForPeer(Peer peer) {
-        // TODO : Provide Transport preference order. Perhaps each Transport has a unique int preference score
 
         String recipientIdentifier = identifiedPeers.inverse().get(peer);
 
@@ -140,9 +143,9 @@ public class SessionManager implements Transport.TransportCallback,
             !identifierTransports.containsKey(recipientIdentifier))
                 return null;
 
+        // Return the Transport with the highest value (largest MTU)
         return identifierTransports.get(recipientIdentifier)
-                                   .iterator()
-                                   .next();
+                                   .last();
     }
 
     private boolean shouldIdentifyPeer(String identifier) {
@@ -151,7 +154,7 @@ public class SessionManager implements Transport.TransportCallback,
 
     private void registerTransportForIdentifier(Transport transport, String identifier) {
         if (!identifierTransports.containsKey(identifier))
-            identifierTransports.put(identifier, new HashSet<Transport>());
+            identifierTransports.put(identifier, new TreeSet<Transport>());
 
         boolean newTransport = identifierTransports.get(identifier).add(transport);
         if (newTransport)

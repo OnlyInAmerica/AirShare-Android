@@ -25,7 +25,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -48,8 +47,6 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
 
     private static final int PORT = 8787;
     private static final int SOCKET_TIMEOUT_MS = 3000;
-
-    private static final int BUFFER_SIZE = 500 * 1000;
 
     private Context context;
     private WifiP2pManager manager;
@@ -377,7 +374,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                 // TODO : Close the socket when requested
 
                 // Read incoming data
-                Timber.d("Reading incoming data");
+                //Timber.d("Reading incoming data");
                 try {
                     while ((len = inputStream.read(buf)) > 0) {
                         ByteArrayOutputStream os = new ByteArrayOutputStream(len);
@@ -386,13 +383,13 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                         callback.get().dataReceivedFromIdentifier(WifiTransport.this, os.toByteArray(), remoteAddress);
                     }
                 } catch (SocketTimeoutException e) {
-                    Timber.d("No incoming data found in timeout period");
+                    //Timber.d("No incoming data found in timeout period");
                 }
 
                 // Never proceeds from reading onward..
 
                 // Write outgoing data
-                Timber.d("Writing outgoing data");
+                //Timber.d("Writing outgoing data");
                 if (outBuffers.containsKey(remoteAddress) &&
                         outBuffers.get(remoteAddress).size() > 0) {
 

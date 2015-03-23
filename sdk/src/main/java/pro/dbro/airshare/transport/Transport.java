@@ -1,5 +1,6 @@
 package pro.dbro.airshare.transport;
 
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import java.lang.ref.WeakReference;
@@ -9,7 +10,7 @@ import java.util.Set;
 /**
  * Created by davidbrodsky on 2/21/15.
  */
-public abstract class Transport {
+public abstract class Transport implements Comparable<Transport> {
 
     public static enum ConnectionStatus {
         DISCONNECTED,
@@ -66,5 +67,10 @@ public abstract class Transport {
      * @return the Maximum Transmission Unit, in bytes, or 0 if unlimited.
      */
     public abstract int getMtuForIdentifier(String identifier);
+
+    @Override
+    public int compareTo (@NonNull Transport another) {
+        return getMtuForIdentifier("") - another.getMtuForIdentifier("");
+    }
 
 }

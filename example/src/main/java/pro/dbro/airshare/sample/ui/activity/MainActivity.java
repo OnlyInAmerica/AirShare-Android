@@ -49,8 +49,6 @@ public class MainActivity extends AirShareActivity implements WelcomeFragment.We
 
     private PeerFragment peerFragment;
 
-    private FloatingActionButton fab;
-
     private Peer recipientPeer;
 
     private ProgressBar progress;
@@ -60,15 +58,6 @@ public class MainActivity extends AirShareActivity implements WelcomeFragment.We
         super.onCreate(savedInstanceState);
         setAirShareCallback(this);
         setContentView(R.layout.activity_main);
-
-        fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (serviceBinder != null)
-                    serviceBinder.advertiseLocalUser();
-            }
-        });
 
         setAirShareCallback(this);
 
@@ -82,13 +71,10 @@ public class MainActivity extends AirShareActivity implements WelcomeFragment.We
                 .replace(R.id.frame, peerFragment)
                 .commit();
 
-        fab.setVisibility(View.VISIBLE);
     }
 
     private void showWelcomeFragment() {
         Timber.d("Showing welcome frag ");
-
-        fab.setVisibility(View.GONE);
 
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, new WelcomeFragment())
@@ -365,6 +351,7 @@ public class MainActivity extends AirShareActivity implements WelcomeFragment.We
         serviceBinder.setPeerCallback(this);
         serviceBinder.setReceiverCallback(this);
         serviceBinder.scanForOtherUsers();
+        serviceBinder.advertiseLocalUser();
 
         showPeerFragment();
     }
