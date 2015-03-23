@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -321,57 +322,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                     Timber.d("Client connected to %s", address.getHostAddress());
                     callback.get().identifierUpdated(WifiTransport.this, address.getHostAddress(), ConnectionStatus.CONNECTED, null);
 
-                    socket.setSoTimeout(500);
-                    InputStream is = socket.getInputStream();
-                    OutputStream os = socket.getOutputStream();
-
-                    byte[] buf = new byte[1024];
-                    int len;
-
-                    while (connectionDesired) {
-                        // TODO Allow disconnection :)
-//                        synchronized (outBuffers) {
-//
-//                            // Wait for outgoing data. The client initiates the flow
-//
-//                            if (!outBuffers.containsKey(address.getHostAddress()) ||
-//                                outBuffers.get(address.getHostAddress()).size() == 0) {
-//                                Timber.d("Waiting for output data");
-//                                outBuffers.wait();
-//                            } else
-//                                Timber.d("Output ready");
-//                        }
-
-                        // Write outgoing data
-                        Timber.d("Writing outgoing data");
-                        if (outBuffers.containsKey(address.getHostAddress()) &&
-                            outBuffers.get(address.getHostAddress()).size() > 0) {
-
-                            ArrayDeque<byte[]> outBuffersForPeer = outBuffers.get(address.getHostAddress());
-
-                            while (outBuffers.get(address.getHostAddress()).size() > 0) {
-                                os.write(outBuffersForPeer.peek());
-                                Timber.d("Wrote %d bytes to %s", outBuffersForPeer.peek().length, address.getHostAddress());
-                                callback.get().dataSentToIdentifier(WifiTransport.this, outBuffersForPeer.poll(), address.getHostAddress(), null);
-                            }
-
-                        } else
-                            Timber.w("Was notified, but no messages ready");
-
-                        // Read incoming data
-
-                        Timber.d("Reading incoming data");
-                        try {
-                            while ((len = is.read(buf)) > 0) {
-                                ByteArrayOutputStream bos = new ByteArrayOutputStream(len);
-                                bos.write(buf, 0, len);
-                                Timber.d("Got %d bytes from %s", len, address.getHostAddress());
-                                callback.get().dataReceivedFromIdentifier(WifiTransport.this, bos.toByteArray(), address.getHostAddress());
-                            }
-                        } catch (SocketTimeoutException e) {
-                            Timber.d("No incoming data in timeout period");
-                        }
-                    }
+                    maintainSocket(socket, address.getHostAddress());
 
                 } catch (IOException | InterruptedException e) {
                     e.printStackTrace();
@@ -394,75 +345,10 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                     String clientAddress = client.getInetAddress().getHostAddress();
                     Timber.d("Connected to %s (local is server)", clientAddress);
 
-                    if (connectingPeers.size() == 1) {
-                        // We can associate the MAC address we initially discovered
-                        // with the IP address now available
-                        String mac = connectingPeers.iterator().next();
-                        macToIpAddress.put(mac, clientAddress);
-                        Timber.d("associated %s with %s", mac,
-                                client.getInetAddress().getHostAddress());
-                    } else {
-                        Iterator<String> iter = connectingPeers.iterator();
-                        StringBuilder builder = new StringBuilder();
-                        while (iter.hasNext()) {
-                            builder.append(iter.next());
-                            builder.append(", ");
-                        }
-                        Timber.w("Connecting to %d peers (%s)... cannot associate IP address of just-connected peer", connectingPeers.size(), builder.toString());
-                    }
-
-                    // Let the Client report initial connection. The Server will respond after identity is received
-//                    callback.get().identifierUpdated(WifiTransport.this,
-//                                                     client.getInetAddress().getHostAddress(),
-//                                                     ConnectionStatus.CONNECTED,
-//                                                     null);
-
+                    // Let the client report connection events. Server will report when identity received
                     connectedPeers.add(clientAddress);
 
-                    client.setSoTimeout(500);
-                    InputStream inputStream = client.getInputStream();
-                    OutputStream outputStream = client.getOutputStream();
-
-                    byte[] buf = new byte[1024];
-                    int len;
-
-                    while (connectionDesired) {
-                        // TODO : Close the socket when requested
-
-                        // Read incoming data
-                        Timber.d("Reading incoming data");
-                        try {
-                            while ((len = inputStream.read(buf)) > 0) {
-                                ByteArrayOutputStream os = new ByteArrayOutputStream(len);
-                                os.write(buf, 0, len);
-                                Timber.d("Got %d bytes from %s", len, client.getInetAddress().getHostAddress());
-                                callback.get().dataReceivedFromIdentifier(WifiTransport.this, os.toByteArray(), client.getInetAddress().getHostAddress());
-                            }
-                        } catch (SocketTimeoutException e) {
-                            Timber.d("No incoming data found in timeout period");
-                        }
-
-                        // Never proceeds from reading onward..
-
-                        // Write outgoing data
-                        Timber.d("Writing outgoing data");
-                        if (outBuffers.containsKey(clientAddress) &&
-                            outBuffers.get(clientAddress).size() > 0) {
-
-                            ArrayDeque<byte[]> outBuffersForPeer = outBuffers.get(clientAddress);
-
-                            while (outBuffers.get(clientAddress).size() > 0) {
-                                outputStream.write(outBuffersForPeer.peek());
-                                Timber.d("Wrote %d bytes to %s", outBuffersForPeer.peek().length, clientAddress);
-                                callback.get().dataSentToIdentifier(WifiTransport.this, outBuffersForPeer.poll(), clientAddress, null);
-                            }
-
-                        }
-                    }
-                    outputStream.close();
-                    inputStream.close();
-                    Timber.d("Finished reading data from %s", client.getInetAddress().getHostAddress());
-
+                    maintainSocket(client, client.getInetAddress().getHostAddress());
 
                 } catch (IOException e) {
                     Timber.e(e, "Failed to read socket inputstream");
@@ -473,40 +359,60 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
         socketThread.start();
     }
 
-//    private AsyncTask transferTask = new AsyncTask<Void, Void, String>() {
-//
-//        @Override
-//        protected String doInBackground(Void... params) {
-//            try {
-//
-//                /**
-//                 * Create a server socket and wait for client connections. This
-//                 * call blocks until a connection is accepted from a client
-//                 */
-//                ServerSocket serverSocket = new ServerSocket(8888);
-//                Socket client = serverSocket.accept();
-//
-//                client.getOutputStream()
-//
-//                callback.get().dataReceivedFromIdentifier(this, );
-//                return f.getAbsolutePath();
-//            } catch (IOException e) {
-//                Timber.e(e);
-//                return null;
-//            }
-//        }
-//
-//        /**
-//         * Start activity that can handle the JPEG image
-//         */
-//        @Override
-//        protected void onPostExecute(String result) {
-//            if (result != null) {
-//                Intent intent = new Intent();
-//                intent.setAction(android.content.Intent.ACTION_VIEW);
-//                intent.setDataAndType(Uri.parse("file://" + result), "image/*");
-//                context.startActivity(intent);
-//            }
-//        }
-//    };
+    /**
+     * Maintains the given socket in a read / write loop until
+     * {@link #connectionDesired} is set false.
+     */
+    private void maintainSocket(Socket socket, String remoteAddress) {
+        try {
+            socket.setSoTimeout(500);
+
+            InputStream inputStream = socket.getInputStream();
+            OutputStream outputStream = socket.getOutputStream();
+
+            byte[] buf = new byte[1024];
+            int len;
+
+            while (connectionDesired) {
+                // TODO : Close the socket when requested
+
+                // Read incoming data
+                Timber.d("Reading incoming data");
+                try {
+                    while ((len = inputStream.read(buf)) > 0) {
+                        ByteArrayOutputStream os = new ByteArrayOutputStream(len);
+                        os.write(buf, 0, len);
+                        Timber.d("Got %d bytes from %s", len, remoteAddress);
+                        callback.get().dataReceivedFromIdentifier(WifiTransport.this, os.toByteArray(), remoteAddress);
+                    }
+                } catch (SocketTimeoutException e) {
+                    Timber.d("No incoming data found in timeout period");
+                }
+
+                // Never proceeds from reading onward..
+
+                // Write outgoing data
+                Timber.d("Writing outgoing data");
+                if (outBuffers.containsKey(remoteAddress) &&
+                        outBuffers.get(remoteAddress).size() > 0) {
+
+                    ArrayDeque<byte[]> outBuffersForPeer = outBuffers.get(remoteAddress);
+
+                    while (outBuffers.get(remoteAddress).size() > 0) {
+                        outputStream.write(outBuffersForPeer.peek());
+                        Timber.d("Wrote %d bytes to %s", outBuffersForPeer.peek().length, remoteAddress);
+                        callback.get().dataSentToIdentifier(WifiTransport.this, outBuffersForPeer.poll(), remoteAddress, null);
+                    }
+
+                }
+            }
+
+            outputStream.close();
+            inputStream.close();
+            socket.close();
+            Timber.d("Closed socket with %s", remoteAddress);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }
