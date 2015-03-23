@@ -42,6 +42,7 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
 
     private AirShareCallback callback;
     private AirShareService.ServiceBinder serviceBinder;
+    private boolean didIssueServiceUnbind = false;
     private boolean serviceBound = false;  // Are we bound to the ChatService?
     private boolean bluetoothReceiverRegistered = false; // Are we registered for Bluetooth status broadcasts?
 
@@ -63,6 +64,7 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
     public void onStart() {
         super.onStart();
         if (!serviceBound) {
+            didIssueServiceUnbind = false;
             startAndBindToService();
         }
     }
@@ -86,7 +88,8 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
     @Override
     public void onStop() {
         super.onStop();
-        if (serviceBound) {
+        if (serviceBound && !didIssueServiceUnbind) {
+            didIssueServiceUnbind = true;
             unBindService();
             unregisterBroadcastReceiver();
 
