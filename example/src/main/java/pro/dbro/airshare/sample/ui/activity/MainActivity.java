@@ -104,6 +104,11 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
     @Override
     public void onDataSent(HashMap<String, Object> data, Peer recipient) {
         Timber.d("Sent data to %s", recipient.getAlias());
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Quote Sent")
+                .setMessage(String.format("'%s'\n by %s", data.get("quote"), data.get("author")))
+                .setPositiveButton("Ok", null)
+                .show();
     }
 
     @Override
