@@ -77,6 +77,10 @@ public class IncomingTransfer implements IncomingMessageListener, MessageDeliver
         return (String) messageAwaitingAccept.getHeaders().get(FileTransferMessage.HEADER_FILENAME);
     }
 
+    public String getTransferId() {
+        return (String) transferMessage.getHeaders().get(SessionMessage.HEADER_ID);
+    }
+
     public @Nullable Map<String, Object> getHeaderExtras() {
         return (Map<String, Object>) transferMessage.getHeaders().get(SessionMessage.HEADER_EXTRA);
     }

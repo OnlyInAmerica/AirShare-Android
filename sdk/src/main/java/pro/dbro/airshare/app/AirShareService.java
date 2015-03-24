@@ -8,6 +8,7 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
+import android.provider.ContactsContract;
 import android.support.annotation.Nullable;
 
 import com.google.common.collect.BiMap;
@@ -20,6 +21,7 @@ import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import pro.dbro.airshare.crypto.KeyPair;
@@ -250,20 +252,30 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         IncomingTransfer incomingTransfer = null;
         for (IncomingTransfer transfer : inPeerTransfers.get(sender)) {
-            if (transfer.getFilename().equals(transferMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)))
-                incomingTransfer = transfer;
+            if (transferMessage instanceof FileTransferMessage) {
+                if (transfer.getFilename().equals(transferMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)))
+                    incomingTransfer = transfer;
+            } else if (transferMessage instanceof DataTransferMessage) {
+                if (Objects.equals(transfer.getTransferId(), transferMessage.getHeaders().get(SessionMessage.HEADER_ID)))
+                    incomingTransfer = transfer;
+            }
         }
 
         return incomingTransfer;
     }
 
-    private @Nullable OutgoingTransfer getOutgoingTransferForFileTransferMessage(FileTransferMessage fileMessage,
+    private @Nullable OutgoingTransfer getOutgoingTransferForFileTransferMessage(SessionMessage transferMessage,
                                                                                  Peer recipient) {
 
         OutgoingTransfer outgoingTransfer = null;
         for (OutgoingTransfer transfer : outPeerTransfers.get(recipient)) {
-            if (transfer.getFilename().equals(fileMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)))
-                outgoingTransfer = transfer;
+            if (transferMessage instanceof FileTransferMessage) {
+                if (transfer.getFilename().equals(transferMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)))
+                    outgoingTransfer = transfer;
+            } else if (transferMessage instanceof DataTransferMessage) {
+                if (Objects.equals(transfer.getTransferId(), transferMessage.getHeaders().get(SessionMessage.HEADER_ID)))
+                    outgoingTransfer = transfer;
+            }
         }
 
         return outgoingTransfer;
@@ -351,7 +363,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
                 case FileTransferMessage.HEADER_TYPE_ACCEPT:
                     // An Acceptance was received that wasn't intercepted by a corresponding offer
-                    OutgoingTransfer outgoingTransfer = getOutgoingTransferForFileTransferMessage((FileTransferMessage) message, sender);
+                    OutgoingTransfer outgoingTransfer = getOutgoingTransferForFileTransferMessage(message, sender);
 
                     if (outgoingTransfer == null) {
                         Timber.w("Received accept filetransfermessage but no corresponding OutgoingTransfer registered");
@@ -366,7 +378,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
                 case FileTransferMessage.HEADER_TYPE_TRANSFER:
                     // An incoming transfer
 
-                    incomingTransfer = getIncomingTransferForFileTransferMessage((FileTransferMessage) message, sender);
+                    incomingTransfer = getIncomingTransferForFileTransferMessage(message, sender);
 
                     if (incomingTransfer == null) {
                         Timber.w("Received transfer filetransfermessage but no corresponding incomingtransfer registered");
@@ -402,7 +414,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     }
 
     @Override
-    public void messageSentToPeer(SessionMessage message, Peer recipient, Exception exception) {
+    public void messageSentToPeer(SessionMessage message, final Peer recipient, Exception exception) {
         Timber.d("Sent %s to %s", message.getType(), recipient.getAlias());
         Iterator<MessageDeliveryListener> iterator = messageDeliveryListeners.iterator();
         MessageDeliveryListener listener;
@@ -414,10 +426,22 @@ public class AirShareService extends Service implements ActivityRecevingMessages
                 iterator.remove();
         }
 
+        final OutgoingTransfer outgoingTransfer;
         switch (message.getType()) {
+            case DataTransferMessage.HEADER_TYPE:
+
+                outgoingTransfer = getOutgoingTransferForFileTransferMessage(message, recipient);
+                // No action is required for DataTransferMessage. Report complete
+                foregroundHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (sCallback != null) sCallback.onTransferComplete(outgoingTransfer, recipient, null);
+                    }
+                });
+                break;
             case FileTransferMessage.HEADER_TYPE_TRANSFER:
 
-                OutgoingTransfer outgoingTransfer = getOutgoingTransferForFileTransferMessage((FileTransferMessage) message, recipient);
+                outgoingTransfer = getOutgoingTransferForFileTransferMessage(message, recipient);
 
                 if (outgoingTransfer == null) {
                     Timber.w("Sent transfer FileTransferMessage but no OutgoingTransfer registered");

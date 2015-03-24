@@ -61,7 +61,8 @@ public class OutgoingTransfer implements IncomingMessageListener, MessageDeliver
 
         init(recipient, messageSender);
 
-        messageSender.sendMessage(new DataTransferMessage(data), recipient);
+        transferMessage = new DataTransferMessage(data);
+        messageSender.sendMessage(transferMessage, recipient);
 
         state = State.AWAITING_DATA_ACK;
     }
@@ -70,7 +71,8 @@ public class OutgoingTransfer implements IncomingMessageListener, MessageDeliver
 
         init(recipient, messageSender);
 
-        messageSender.sendMessage(new DataTransferMessage(data, null), recipient);
+        transferMessage = new DataTransferMessage(data, null);
+        messageSender.sendMessage(transferMessage, recipient);
 
         state = State.AWAITING_DATA_ACK;
     }
@@ -116,7 +118,13 @@ public class OutgoingTransfer implements IncomingMessageListener, MessageDeliver
         return (String) offerMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME);
     }
 
+    public String getTransferId() {
+        if (transferMessage == null) return null;
+        return (String) transferMessage.getHeaders().get(SessionMessage.HEADER_ID);
+    }
+
     public @Nullable Map<String, Object> getHeaderExtras() {
+        if (transferMessage == null) return null;
         return (Map<String, Object>) transferMessage.getHeaders().get(SessionMessage.HEADER_EXTRA);
     }
 

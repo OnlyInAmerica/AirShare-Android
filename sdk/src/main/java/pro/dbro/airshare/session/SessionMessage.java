@@ -94,6 +94,10 @@ public abstract class SessionMessage {
         headerMap.put(HEADER_BODY_LENGTH, bodyLengthBytes);
         headerMap.put(HEADER_ID,          id);
 
+        Map<String, Object> extras = getHeaderExtras();
+        if (extras != null)
+            headerMap.put(HEADER_EXTRA,   extras);
+
         return headerMap;
     }
 
@@ -247,15 +251,6 @@ public abstract class SessionMessage {
         if (serializedHeaders == null) {
             if (headers == null) headers = populateHeaders();
             JSONObject jsonHeaders = new JSONObject(headers);
-
-            try {
-                Map extras = getHeaderExtras();
-                if (extras != null)
-                    jsonHeaders.put(HEADER_EXTRA, new JSONObject(extras));
-            } catch (JSONException e) {
-                Timber.e(e, "Error adding extra headers");
-            }
-
             serializedHeaders = jsonHeaders.toString().getBytes();
 
         }
