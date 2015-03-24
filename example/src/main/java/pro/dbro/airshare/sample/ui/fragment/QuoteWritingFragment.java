@@ -14,33 +14,34 @@ import pro.dbro.airshare.sample.R;
 /**
  * A simple {@link Fragment} subclass.
  */
-public class WritingFragment extends Fragment {
+public class QuoteWritingFragment extends Fragment {
 
     public static interface WritingFragmentListener {
 
-        public void onShareRequested(String shareText);
+        public void onShareRequested(String quote, String author);
     }
 
     private WritingFragmentListener listener;
-    private EditText entry;
+    private EditText quoteEntry;
+    private EditText authorEntry;
 
-
-    public WritingFragment() {
+    public QuoteWritingFragment() {
         // Required empty public constructor
     }
-
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         View root = inflater.inflate(R.layout.fragment_writing, container, false);
-        entry = (EditText) root.findViewById(R.id.entry);
+        quoteEntry = (EditText) root.findViewById(R.id.quote_entry);
+        authorEntry = (EditText) root.findViewById(R.id.author_entry);
 
         root.findViewById(R.id.share_button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                listener.onShareRequested(entry.getText().toString());
+                listener.onShareRequested(quoteEntry.getText().toString(),
+                                          authorEntry.getText().toString());
             }
         });
 

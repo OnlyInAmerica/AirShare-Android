@@ -1,37 +1,54 @@
 package pro.dbro.airshare.sample.ui.activity;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.FragmentManager;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
 import java.util.HashMap;
 
 import pro.dbro.airshare.app.ui.PeerFragment;
 import pro.dbro.airshare.sample.R;
+import pro.dbro.airshare.sample.ui.fragment.QuoteWritingFragment;
 import pro.dbro.airshare.sample.ui.fragment.WelcomeFragment;
-import pro.dbro.airshare.sample.ui.fragment.WritingFragment;
 import pro.dbro.airshare.session.Peer;
 import timber.log.Timber;
 
 public class MainActivity extends Activity implements WelcomeFragment.WelcomeFragmentListener,
-                                                      WritingFragment.WritingFragmentListener,
+                                                      QuoteWritingFragment.WritingFragmentListener,
                                                       PeerFragment.PeerFragmentListener {
 
     private static final String SERVICE_NAME = "AirShareDemo";
 
     private String username;
     private Button receiveButton;
+    private TextView title;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         receiveButton = (Button) findViewById(R.id.receive_button);
+        title = (TextView) findViewById(R.id.title);
 
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, new WelcomeFragment())
                 .commit();
+
+        getFragmentManager().addOnBackStackChangedListener(new FragmentManager.OnBackStackChangedListener() {
+            @Override
+            public void onBackStackChanged() {
+                int numEntries = getFragmentManager().getBackStackEntryCount();
+                if (numEntries == 0) {
+                    // Reset to "Home" State (WritingFragment)
+                    receiveButton.setVisibility(View.VISIBLE);
+                    title.setText("");
+                }
+            }
+        });
     }
 
     @Override
@@ -42,28 +59,33 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
     }
 
     @Override
-    public void onShareRequested(String shareText) {
+    public void onShareRequested(String quote, String author) {
         HashMap<String, Object> dataToShare = new HashMap<>();
-        dataToShare.put("text", shareText);
+        dataToShare.put("quote", quote);
+        dataToShare.put("author", author);
 
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, PeerFragment.toSend(dataToShare, username, SERVICE_NAME))
+                .addToBackStack(null)
                 .commit();
 
         receiveButton.setVisibility(View.GONE);
+        title.setText("Sending Quote");
     }
 
     public void onReceiveButtonClick(View button) {
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, PeerFragment.toReceive(username, SERVICE_NAME))
+                .addToBackStack(null)
                 .commit();
 
         receiveButton.setVisibility(View.GONE);
+        title.setText("Receiving Quote");
     }
 
     private void showWritingFragment() {
         getFragmentManager().beginTransaction()
-                .replace(R.id.frame, new WritingFragment())
+                .replace(R.id.frame, new QuoteWritingFragment())
                 .commit();
 
         receiveButton.setVisibility(View.VISIBLE);
@@ -72,7 +94,11 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
     @Override
     public void onDataReceived(HashMap<String, Object> data, Peer sender) {
         Timber.d("Got data from %s", sender.getAlias());
-        // TODO : Display data in a dialog etc?
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Quote Received")
+                .setMessage(String.format("'%s'\n by %s", data.get("quote"), data.get("author")))
+                .setPositiveButton("Ok", null)
+                .show();
     }
 
     @Override

@@ -57,11 +57,20 @@ public class OutgoingTransfer implements IncomingMessageListener, MessageDeliver
 
     // <editor-fold desc="Outgoing Constructors">
 
-    public OutgoingTransfer(byte[] data, Peer recipient, SessionMessageScheduler messageSender) {
+    public OutgoingTransfer(Map<String, Object> data, Peer recipient, SessionMessageScheduler messageSender) {
 
         init(recipient, messageSender);
 
         messageSender.sendMessage(new DataTransferMessage(data), recipient);
+
+        state = State.AWAITING_DATA_ACK;
+    }
+
+    public OutgoingTransfer(byte[] data, Peer recipient, SessionMessageScheduler messageSender) {
+
+        init(recipient, messageSender);
+
+        messageSender.sendMessage(new DataTransferMessage(data, null), recipient);
 
         state = State.AWAITING_DATA_ACK;
     }

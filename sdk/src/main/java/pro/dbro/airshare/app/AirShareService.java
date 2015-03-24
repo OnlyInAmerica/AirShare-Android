@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 import pro.dbro.airshare.crypto.KeyPair;
@@ -176,6 +177,10 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         }
 
         public void offer(byte[] data, Peer recipient) {
+            addOutgoingTransfer(new OutgoingTransfer(data, recipient, sessionManager));
+        }
+
+        public void offer(Map<String, Object> data, Peer recipient) {
             addOutgoingTransfer(new OutgoingTransfer(data, recipient, sessionManager));
         }
 

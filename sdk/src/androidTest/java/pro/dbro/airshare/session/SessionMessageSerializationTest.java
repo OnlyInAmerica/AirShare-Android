@@ -60,8 +60,8 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
         byte[] longPayload = new byte[16000];
 
 
-        DataTransferMessage shortDataTransferMessage = new DataTransferMessage(shortPayload);
-        DataTransferMessage longDataTransferMessage = new DataTransferMessage(longPayload);
+        DataTransferMessage shortDataTransferMessage = new DataTransferMessage(shortPayload, null);
+        DataTransferMessage longDataTransferMessage = new DataTransferMessage(longPayload, null);
 
         messages.add(shortDataTransferMessage);
         messages.add(longDataTransferMessage);

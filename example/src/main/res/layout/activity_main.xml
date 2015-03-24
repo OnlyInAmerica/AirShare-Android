@@ -11,13 +11,26 @@
         android:layout_height="60dp"
         android:background="@color/primary">
 
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start"
+            android:textSize="25sp"
+            android:textColor="@android:color/white"/>
+
         <Button
             android:id="@+id/receive_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end"
-            android:layout_marginEnd="8dp"
+            android:gravity="center"
+            android:layout_marginEnd="16dp"
             android:onClick="onReceiveButtonClick"
+            android:visibility="gone"
+            android:backgroundTint="@color/primary_dark"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
             android:text="@string/receive"/>
 
     </Toolbar>

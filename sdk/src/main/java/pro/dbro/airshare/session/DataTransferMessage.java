@@ -15,6 +15,7 @@ public class DataTransferMessage extends SessionMessage {
     public static final String HEADER_TYPE = "datatransfer";
 
     private ByteBuffer data;
+    private Map<String, Object> extraHeaders;
 
     public DataTransferMessage(@NonNull HashMap<String, Object> headers,
                                @Nullable byte[] body) {
@@ -32,11 +33,23 @@ public class DataTransferMessage extends SessionMessage {
 
     }
 
-    public DataTransferMessage(byte[] data) {
+    public DataTransferMessage(@NonNull byte[] data,
+                               @Nullable Map<String, Object> extraHeaders) {
         super();
+        this.extraHeaders = extraHeaders;
         init();
         setBody(data);
         bodyLengthBytes = data.length;
+        serializeAndCacheHeaders();
+
+    }
+
+    public DataTransferMessage(@Nullable Map<String, Object> extraHeaders) {
+        super();
+        this.extraHeaders = extraHeaders;
+        init();
+        setBody(new byte[]{});
+        bodyLengthBytes = 0;
         serializeAndCacheHeaders();
 
     }
@@ -55,7 +68,7 @@ public class DataTransferMessage extends SessionMessage {
 
     @Override
     protected Map<String, Object> getHeaderExtras() {
-        return null;
+        return extraHeaders;
     }
 
     @Override

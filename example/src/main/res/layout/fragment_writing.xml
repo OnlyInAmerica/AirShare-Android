@@ -4,22 +4,29 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
-    tools:context="pro.dbro.airshare.sample.ui.fragment.WritingFragment">
+    tools:context="pro.dbro.airshare.sample.ui.fragment.QuoteWritingFragment">
 
     <EditText
-        android:id="@+id/entry"
-        android:layout_width="200dp"
+        android:id="@+id/quote_entry"
+        android:layout_width="300dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:hint="@string/writing_prompt"
+        android:text="@string/quote_placeholder"
         android:textSize="22sp" />
+
+    <EditText
+        android:id="@+id/author_entry"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/author_placeholder"/>
 
     <Button
         android:id="@+id/share_button"
         android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:text="Share"/>
+        android:textSize="18sp"
+        android:text="@string/send"/>
 
 </LinearLayout>
 

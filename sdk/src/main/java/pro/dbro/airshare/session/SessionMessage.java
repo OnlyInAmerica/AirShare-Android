@@ -3,6 +3,7 @@ package pro.dbro.airshare.session;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -93,9 +94,6 @@ public abstract class SessionMessage {
         headerMap.put(HEADER_BODY_LENGTH, bodyLengthBytes);
         headerMap.put(HEADER_ID,          id);
 
-        Map extras = getHeaderExtras();
-        if (extras != null)
-            headerMap.put(HEADER_EXTRA,   extras);
         return headerMap;
     }
 
@@ -183,7 +181,7 @@ public abstract class SessionMessage {
                 offset + bytesWritten < serializedHeaders.length) {
 
                 int headerBytesToCopy = Math.min(length - bytesWritten,
-                                                 serializedHeaders.length);
+                                                 serializedHeaders.length - (bytesWritten + offset - (HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES)));
 
                 outputStream.write(serializedHeaders,
                                    offset + bytesWritten - (HEADER_LENGTH_BYTES + HEADER_VERSION_BYTES),
@@ -248,7 +246,18 @@ public abstract class SessionMessage {
     protected void serializeAndCacheHeaders() {
         if (serializedHeaders == null) {
             if (headers == null) headers = populateHeaders();
-            serializedHeaders = new JSONObject(headers).toString().getBytes();
+            JSONObject jsonHeaders = new JSONObject(headers);
+
+            try {
+                Map extras = getHeaderExtras();
+                if (extras != null)
+                    jsonHeaders.put(HEADER_EXTRA, new JSONObject(extras));
+            } catch (JSONException e) {
+                Timber.e(e, "Error adding extra headers");
+            }
+
+            serializedHeaders = jsonHeaders.toString().getBytes();
+
         }
     }
 

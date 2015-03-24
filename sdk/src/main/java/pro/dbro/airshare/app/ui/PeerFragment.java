@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import pro.dbro.airshare.R;
 import pro.dbro.airshare.app.AirShareService;
 import pro.dbro.airshare.app.IncomingTransfer;
 import pro.dbro.airshare.app.OutgoingTransfer;
@@ -92,6 +93,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
 
     }
 
+    private ViewGroup emptyContainer;
     private RecyclerView recyclerView;
     private PeerAdapter peerAdapter;
     private PeerFragmentListener callback;
@@ -102,7 +104,6 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
     private String serviceName;
 
     private HashMap payload;
-    private byte[] serializedPayload;
 
     public static PeerFragment toSend(@NonNull HashMap<String, Object> toSend,
                                       @NonNull String username,
@@ -151,9 +152,6 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
             username = getArguments().getString(BUNDLE_USERNAME);
             serviceName = getArguments().getString(BUNDLE_SERVICENAME);
             payload = (HashMap) getArguments().getSerializable(BUNDLE_PAYLOAD);
-
-            if (payload != null)
-                serializedPayload = new JSONObject(payload).toString().getBytes();
         }
     }
 
@@ -162,8 +160,10 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         Context context = getActivity();
+        View root = inflater.inflate(R.layout.fragment_peer, container, false);
         peerAdapter = new PeerAdapter(context, new ArrayList<Peer>());
-        recyclerView = new RecyclerView(context);
+        emptyContainer = (ViewGroup) root.findViewById(R.id.empty_container);
+        recyclerView = (RecyclerView) root.findViewById(R.id.recycler_view);
         recyclerView.setLayoutManager(new LinearLayoutManager(context));
         recyclerView.setAdapter(peerAdapter);
 
@@ -173,7 +173,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
                 onPeerSelected((Peer) v.getTag());
             }
         });
-        return recyclerView;
+        return root;
     }
 
     @Override
@@ -208,7 +208,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
         switch (mode) {
             case SEND:
 
-                serviceBinder.offer(serializedPayload, peer);
+                serviceBinder.offer(payload, peer);
                 break;
 
             case BOTH:
@@ -227,10 +227,17 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
         switch (newStatus) {
             case CONNECTED:
                 peerAdapter.notifyPeerAdded(peer);
+
+                emptyContainer.setVisibility(View.GONE);
+                recyclerView.setVisibility(View.VISIBLE);
                 break;
 
             case DISCONNECTED:
                 peerAdapter.notifyPeerRemoved(peer);
+                if (peerAdapter.getItemCount() == 0) {
+                    emptyContainer.setVisibility(View.VISIBLE);
+                    recyclerView.setVisibility(View.GONE);
+                }
                 break;
         }
     }
@@ -247,6 +254,20 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
 
         this.serviceBinder.setReceiverCallback(this);
         this.serviceBinder.setSenderCallback(this);
+
+        switch (mode) {
+            case SEND:
+                this.serviceBinder.scanForOtherUsers();
+                break;
+
+            case RECEIVE:
+                this.serviceBinder.advertiseLocalUser();
+                break;
+
+            case BOTH:
+                this.serviceBinder.scanForOtherUsers();
+                this.serviceBinder.advertiseLocalUser();
+        }
     }
 
     @Override

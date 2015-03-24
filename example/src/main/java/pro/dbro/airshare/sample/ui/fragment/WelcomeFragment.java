@@ -29,7 +29,7 @@ public class WelcomeFragment extends Fragment {
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         View root = inflater.inflate(R.layout.fragment_welcome, container, false);
-        EditText entry = (EditText) root.findViewById(R.id.entry);
+        EditText entry = (EditText) root.findViewById(R.id.quote_entry);
         entry.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {

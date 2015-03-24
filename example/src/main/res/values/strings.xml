@@ -12,6 +12,8 @@
     <string name="choose_a_name">Choose a name</string>
 
     <!-- WritingFragment -->
-    <string name="writing_prompt">Text to share. How about your favorite quote?</string>
+    <string name="quote_placeholder">And the end of all our exploring will be to arrive where we started and know the place for the first time.</string>
+    <string name="author_placeholder">Thomas Stearns Eliot</string>
+    <string name="send">Send</string>
 
 </resources>
