@@ -3,22 +3,21 @@
     package="pro.dbro.airshare.sample" >
 
     <application
+        android:name=".AirShareSampleApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:name=".AirShareSampleApp"
         android:theme="@style/AppTheme" >
+        <service android:name="pro.dbro.airshare.app.AirShareService" />
+
         <activity
-            android:name=".ui.activity.MainActivity"
-            android:label="@string/app_name" >
+            android:name=".ui.activity.MainActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <service android:name="pro.dbro.airshare.app.AirShareService"/>
     </application>
 
 </manifest>

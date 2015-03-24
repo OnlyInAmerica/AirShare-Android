@@ -1,4 +1,4 @@
-package pro.dbro.airshare.sample.ui.adapter;
+package pro.dbro.airshare.app.adapter;
 
 import android.content.Context;
 import android.support.v7.widget.RecyclerView;
@@ -10,7 +10,7 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 
-import pro.dbro.airshare.sample.R;
+import pro.dbro.airshare.R;
 import pro.dbro.airshare.session.Peer;
 
 

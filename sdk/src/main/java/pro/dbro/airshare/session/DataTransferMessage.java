@@ -5,6 +5,7 @@ import android.support.annotation.Nullable;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Created by davidbrodsky on 2/22/15.
@@ -50,6 +51,11 @@ public class DataTransferMessage extends SessionMessage {
 
         data = ByteBuffer.wrap(body);
         status = Status.COMPLETE;
+    }
+
+    @Override
+    protected Map<String, Object> getHeaderExtras() {
+        return null;
     }
 
     @Override

@@ -24,7 +24,7 @@ import timber.log.Timber;
  */
 public class SessionManager implements Transport.TransportCallback,
                                        SessionMessageDeserializer.SessionMessageDeserializerCallback,
-        SessionMessageScheduler {
+                                       SessionMessageScheduler {
 
     public interface SessionManagerCallback {
 
@@ -132,7 +132,7 @@ public class SessionManager implements Transport.TransportCallback,
     private void initializeTransports(String serviceName) {
         transports = new HashSet<>();
         transports.add(new BLETransport(context, serviceName, this));
-        transports.add(new WifiTransport(context, serviceName, this));
+//        transports.add(new WifiTransport(context, serviceName, this));
     }
 
     private @Nullable Transport getPreferredTransportForPeer(Peer peer) {

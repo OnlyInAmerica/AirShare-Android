@@ -38,6 +38,8 @@ import timber.log.Timber;
 /**
  * Wifi Direct Transport. Requires Android 4.0.
  *
+ * Proof-of-concept. Not yet ready for use.
+ *
  * Created by davidbrodsky on 2/21/15.
  */
 public class WifiTransport extends Transport implements WifiP2pManager.PeerListListener,
@@ -212,8 +214,8 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                     return;
                 }
 
-                WifiP2pGroup p2pGroup = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_GROUP);
-                WifiP2pInfo p2pInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_INFO);
+                //WifiP2pGroup p2pGroup = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_GROUP);
+                //WifiP2pInfo p2pInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_INFO);
                 NetworkInfo networkInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO);
                 final WifiP2pDevice device = (WifiP2pDevice) intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);
 
@@ -225,16 +227,10 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                 } else {
                     Timber.d("Disconnected from %s", device != null ? device.deviceAddress : "");
                     // It's a disconnect
-//                    activity.resetData();
                 }
             } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION.equals(action)) {
                 WifiP2pDevice device = (WifiP2pDevice) intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);
                 Timber.d("This device (%s) changed", device.deviceAddress);
-
-//                DeviceListFragment fragment = (DeviceListFragment) activity.getFragmentManager()
-//                        .findFragmentById(R.id.frag_list);
-//                fragment.updateThisDevice((WifiP2pDevice) intent.getParcelableExtra(
-//                        WifiP2pManager.EXTRA_WIFI_P2P_DEVICE));
 
             }
         }

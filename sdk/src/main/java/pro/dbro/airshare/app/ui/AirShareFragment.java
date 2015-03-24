@@ -2,6 +2,7 @@ package pro.dbro.airshare.app.ui;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Fragment;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -21,9 +22,9 @@ import timber.log.Timber;
 
 /**
  * Convenience activity for interacting with AirShare. Implementation classes
- * must implement {@link pro.dbro.airshare.app.ui.AirShareActivity.AirShareCallback}
+ * must implement {@link AirShareFragment.AirShareCallback}
  */
-public abstract class AirShareActivity extends Activity implements ServiceConnection {
+public abstract class AirShareFragment extends Fragment implements ServiceConnection {
 
     public static interface AirShareCallback {
 
@@ -37,6 +38,12 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
          * Indicates AirShare is ready
          */
         public void onServiceReady(AirShareService.ServiceBinder serviceBinder);
+
+        /**
+         * Indicates the AirShare service is finished.
+         * This would occur if the user declined to enable required resources like Bluetooth
+         */
+        public void onFinished(Exception exception);
 
     }
 
@@ -55,11 +62,10 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
     }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-
     }
+
     @Override
     public void onStart() {
         super.onStart();
@@ -108,19 +114,21 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
 
     public void stopService() {
         Timber.d("Stopping service");
-        Intent intent = new Intent(this, AirShareService.class);
-        stopService(intent);
+        Activity host = getActivity();
+        Intent intent = new Intent(host, AirShareService.class);
+        host.stopService(intent);
     }
 
     private void startAndBindToService() {
         Timber.d("Starting service");
-        Intent intent = new Intent(this, AirShareService.class);
-        startService(intent);
-        bindService(intent, this, 0);
+        Activity host = getActivity();
+        Intent intent = new Intent(host, AirShareService.class);
+        host.startService(intent);
+        host.bindService(intent, this, 0);
     }
 
     private void unBindService() {
-        unbindService(this);
+        getActivity().unbindService(this);
     }
 
     private final BroadcastReceiver mBluetoothBroadcastReceiver = new BroadcastReceiver() {
@@ -168,7 +176,7 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
     }
 
     private void checkDevicePreconditions() {
-        if (!BLEUtil.isBluetoothEnabled(this)) {
+        if (!BLEUtil.isBluetoothEnabled(getActivity())) {
             // Bluetooth is not Enabled.
             // await result in OnActivityResult
             registerBroadcastReceiver();
@@ -187,19 +195,19 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
 
     private void registerBroadcastReceiver() {
         IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-        this.registerReceiver(mBluetoothBroadcastReceiver, filter);
+        getActivity().registerReceiver(mBluetoothBroadcastReceiver, filter);
         bluetoothReceiverRegistered = true;
     }
 
     private void unregisterBroadcastReceiver() {
         if (bluetoothReceiverRegistered) {
-            this.unregisterReceiver(mBluetoothBroadcastReceiver);
+            getActivity().unregisterReceiver(mBluetoothBroadcastReceiver);
             bluetoothReceiverRegistered = false;
         }
     }
 
     private void showEnableBluetoothDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
         builder.setTitle("Enable Bluetooth")
                 .setMessage("This app requires Bluetooth on to function. May we enable Bluetooth?")
                 .setPositiveButton("Enable Bluetooth", new DialogInterface.OnClickListener() {
@@ -208,13 +216,14 @@ public abstract class AirShareActivity extends Activity implements ServiceConnec
                         mBluetoothEnableDialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
                         mBluetoothEnableDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
                         ((TextView) mBluetoothEnableDialog.findViewById(android.R.id.message)).setText("Enabling...");
-                        BLEUtil.getManager(AirShareActivity.this).getAdapter().enable();
+                        BLEUtil.getManager(AirShareFragment.this.getActivity()).getAdapter().enable();
                     }
                 })
                 .setNegativeButton("No", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
-                        AirShareActivity.this.finish();
+                        if (callback != null)
+                            callback.onFinished(new UnsupportedOperationException("User declined to enable Bluetooth"));
                     }
                 });
         builder.setCancelable(false);

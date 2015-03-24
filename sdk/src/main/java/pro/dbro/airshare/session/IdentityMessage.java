@@ -64,6 +64,11 @@ public class IdentityMessage extends SessionMessage {
     }
 
     @Override
+    protected Map<String, Object> getHeaderExtras() {
+        return null;
+    }
+
+    @Override
     public byte[] getBodyAtOffset(int offset, int length) {
         return null;
     }

@@ -10,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import timber.log.Timber;
@@ -239,6 +240,11 @@ public class FileTransferMessage extends SessionMessage {
         }
 
         return headerMap;
+    }
+
+    @Override
+    protected Map<String, Object> getHeaderExtras() {
+        return null;
     }
 
     @Override

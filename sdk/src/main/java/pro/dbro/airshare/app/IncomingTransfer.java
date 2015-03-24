@@ -5,6 +5,7 @@ import android.support.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 
 import pro.dbro.airshare.session.DataTransferMessage;
 import pro.dbro.airshare.session.FileTransferMessage;
@@ -74,6 +75,10 @@ public class IncomingTransfer implements IncomingMessageListener, MessageDeliver
 
     public String getFilename() {
         return (String) messageAwaitingAccept.getHeaders().get(FileTransferMessage.HEADER_FILENAME);
+    }
+
+    public @Nullable Map<String, Object> getHeaderExtras() {
+        return (Map<String, Object>) transferMessage.getHeaders().get(SessionMessage.HEADER_EXTRA);
     }
 
     public Peer getSender() {

@@ -1,8 +1,11 @@
 package pro.dbro.airshare.app;
 
+import android.support.annotation.Nullable;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.util.Map;
 
 import pro.dbro.airshare.session.DataTransferMessage;
 import pro.dbro.airshare.session.FileTransferMessage;
@@ -102,6 +105,10 @@ public class OutgoingTransfer implements IncomingMessageListener, MessageDeliver
 
     public String getFilename() {
         return (String) offerMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME);
+    }
+
+    public @Nullable Map<String, Object> getHeaderExtras() {
+        return (Map<String, Object>) transferMessage.getHeaders().get(SessionMessage.HEADER_EXTRA);
     }
 
     public Peer getRecipient() {

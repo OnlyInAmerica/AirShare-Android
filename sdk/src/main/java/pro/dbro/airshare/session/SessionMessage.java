@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -43,6 +44,7 @@ public abstract class SessionMessage {
     public static final String HEADER_TYPE         = "type";
     public static final String HEADER_BODY_LENGTH  = "body-length";
     public static final String HEADER_ID           = "id";
+    public static final String HEADER_EXTRA        = "extra";
 
     protected int                              version;
     protected @NonNull String                  type;
@@ -90,8 +92,14 @@ public abstract class SessionMessage {
         headerMap.put(HEADER_TYPE,        type);
         headerMap.put(HEADER_BODY_LENGTH, bodyLengthBytes);
         headerMap.put(HEADER_ID,          id);
+
+        Map extras = getHeaderExtras();
+        if (extras != null)
+            headerMap.put(HEADER_EXTRA,   extras);
         return headerMap;
     }
+
+    protected abstract Map<String, Object> getHeaderExtras();
 
     public @NonNull String getType() {
         return type;
