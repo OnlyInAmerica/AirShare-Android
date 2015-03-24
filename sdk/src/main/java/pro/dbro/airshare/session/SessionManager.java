@@ -341,6 +341,7 @@ public class SessionManager implements Transport.TransportCallback,
 
                     if (!sentIdentity) {
                         Timber.d("Responding to rx'd identity with local identity");
+                        identifyingPeers.add(senderIdentifier);
                         sendMessage(localIdentityMessage, peer);
                     }
 
