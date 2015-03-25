@@ -73,7 +73,6 @@ public class BLETransport extends Transport implements BLETransportCallback {
         super(serviceName, callback);
 
         serviceUUID = generateUUIDFromString(serviceName);
-        //serviceUUID = UUID.fromString("B491602C-C912-47AE-B639-9C17A4AADB06");
 
         dataCharacteristic.addDescriptor(new BluetoothGattDescriptor(BLECentral.CLIENT_CHARACTERISTIC_CONFIG,
                                                                      BluetoothGattDescriptor.PERMISSION_WRITE |
@@ -89,15 +88,16 @@ public class BLETransport extends Transport implements BLETransportCallback {
     }
 
     private UUID generateUUIDFromString(String input) {
-        String hexString = new String(Hex.encodeHex(DigestUtils.sha1(input)));
+        String hexString = new String(Hex.encodeHex(DigestUtils.sha256(input)));
         StringBuilder uuid = new StringBuilder();
-        // UUID has 32 hex 'digits'. SHA1 Hash has 40
-        uuid.insert(0, hexString.substring(9));
+        // UUID has 32 hex 'digits'
+        uuid.insert(0, hexString.substring(0, 32));
 
         uuid.insert(8, '-');
         uuid.insert(13,'-');
         uuid.insert(18,'-');
         uuid.insert(23,'-');
+        Timber.d("Using UUID %s for string %s", uuid.toString(), input);
         return UUID.fromString(uuid.toString());
     }
 
