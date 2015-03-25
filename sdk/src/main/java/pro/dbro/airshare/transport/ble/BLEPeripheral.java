@@ -339,6 +339,7 @@ public class BLEPeripheral {
             Timber.e("Unable to retrieve BluetoothGattServer");
             return;
         }
+        isAdvertising = true;
         setupGattServer();
     }
 
@@ -372,11 +373,11 @@ public class BLEPeripheral {
     }
 
     private void stopAdvertising() {
-        if (advertiser != null) {
+        if (isAdvertising) {
+            gattServer.close();
             advertiser.stopAdvertising(mAdvCallback);
+            isAdvertising = false;
         }
-        isAdvertising = false;
-        gattServer.close();
     }
 
     // </editor-fold>

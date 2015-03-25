@@ -66,7 +66,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus);
     }
 
-    private static SessionManager sessionManager;
+    private SessionManager sessionManager;
     private AirShareReceiverCallback rCallback;
     private AirShareSenderCallback sCallback;
     private AirSharePeerCallback pCallback;
@@ -108,6 +108,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
     @Override
     public void onDestroy() {
+        Timber.d("Service destroyed");
         sessionManager.stop();
         backgroundLooper.quit();
     }

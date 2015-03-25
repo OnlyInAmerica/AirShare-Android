@@ -368,6 +368,7 @@ public class BLECentral {
             if (scanCallback == null) setScanCallback(null);
 
             scanner.startScan(createScanFilters(), createScanSettings(), scanCallback);
+            isScanning = true;
             //Toast.makeText(context, context.getString(R.string.scan_started), Toast.LENGTH_SHORT).show();
         }
     }
@@ -387,10 +388,11 @@ public class BLECentral {
     }
 
     private void stopScanning() {
-        if (scanner != null) {
+        if (isScanning) {
             scanner.stopScan(scanCallback);
+            scanner = null;
+            isScanning = false;
         }
-        isScanning = false;
     }
 
     private void logCharacteristic(BluetoothGattCharacteristic characteristic) {
