@@ -1,32 +1,66 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
     tools:context="pro.dbro.airshare.sample.ui.fragment.QuoteWritingFragment">
+
 
     <EditText
         android:id="@+id/quote_entry"
-        android:layout_width="300dp"
+        android:layout_width="280dp"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
+        android:layout_marginTop="64dp"
+        android:layout_centerHorizontal="true"
+        android:gravity="center"
         android:text="@string/quote_placeholder"
         android:textSize="22sp" />
 
+    <ImageView
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_alignTop="@id/quote_entry"
+        android:layout_toStartOf="@id/quote_entry"
+        android:alpha=".7"
+        android:src="@mipmap/quote"/>
+
+    <ImageView
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_alignTop="@id/quote_entry"
+        android:layout_toEndOf="@id/quote_entry"
+        android:alpha=".7"
+        android:src="@mipmap/quote_up"/>
+
     <EditText
         android:id="@+id/author_entry"
+        android:layout_below="@id/quote_entry"
+        android:layout_alignEnd="@id/quote_entry"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:singleLine="true"
         android:text="@string/author_placeholder"/>
+
+    <ImageView
+        android:layout_width="25dp"
+        android:layout_height="25dp"
+        android:layout_toStartOf="@id/author_entry"
+        android:layout_alignBottom="@id/author_entry"
+        android:layout_marginBottom="11dp"
+        android:alpha=".7"
+        android:src="@mipmap/ic_user"/>
 
     <Button
         android:id="@+id/share_button"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
+        android:layout_below="@id/author_entry"
+        android:layout_width="wrap_content"
+        android:layout_height="70dp"
+        android:layout_marginTop="16dp"
+        android:layout_alignStart="@id/quote_entry"
+        android:layout_alignEnd="@id/quote_entry"
         android:layout_gravity="center"
         android:textSize="18sp"
+        android:textColor="@android:color/white"
         android:text="@string/send"/>
 
-</LinearLayout>
+</RelativeLayout>
 

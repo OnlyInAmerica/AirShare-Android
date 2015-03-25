@@ -24,14 +24,14 @@
 
     <EditText
         android:id="@+id/quote_entry"
-        android:layout_width="match_parent"
+        android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:layout_below="@id/prompt"
+        android:layout_marginTop="16dp"
         android:layout_centerHorizontal="true"
-        android:background="@android:color/transparent"
-        android:drawableStart="@mipmap/ic_user"
         android:hint="@string/user_alias_hint"
         android:imeOptions="actionDone"
+        android:gravity="center"
         android:maxLength="@integer/max_alias_length"
         android:singleLine="true"
         android:textSize="22sp" />

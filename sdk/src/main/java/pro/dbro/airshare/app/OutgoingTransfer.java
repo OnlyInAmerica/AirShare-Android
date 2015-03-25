@@ -1,7 +1,5 @@
 package pro.dbro.airshare.app;
 
-import android.support.annotation.Nullable;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
@@ -28,7 +26,7 @@ import timber.log.Timber;
  *
  * Created by davidbrodsky on 3/13/15.
  */
-public class OutgoingTransfer implements IncomingMessageListener, MessageDeliveryListener, Transfer {
+public class OutgoingTransfer extends Transfer implements IncomingMessageListener, MessageDeliveryListener {
 
     public static enum State {
 
@@ -53,7 +51,6 @@ public class OutgoingTransfer implements IncomingMessageListener, MessageDeliver
     private State state;
 
     private SessionMessage offerMessage;
-    private SessionMessage transferMessage;
 
     // <editor-fold desc="Outgoing Constructors">
 
@@ -121,11 +118,6 @@ public class OutgoingTransfer implements IncomingMessageListener, MessageDeliver
     public String getTransferId() {
         if (transferMessage == null) return null;
         return (String) transferMessage.getHeaders().get(SessionMessage.HEADER_ID);
-    }
-
-    public @Nullable Map<String, Object> getHeaderExtras() {
-        if (transferMessage == null) return null;
-        return (Map<String, Object>) transferMessage.getHeaders().get(SessionMessage.HEADER_EXTRA);
     }
 
     public Peer getRecipient() {

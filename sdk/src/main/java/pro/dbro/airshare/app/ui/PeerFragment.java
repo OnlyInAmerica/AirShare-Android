@@ -52,7 +52,9 @@ import pro.dbro.airshare.transport.Transport;
  * {@link pro.dbro.airshare.app.ui.PeerFragment.PeerFragmentListener}
  */
 public class PeerFragment extends AirShareFragment implements AirShareService.AirSharePeerCallback,
-                                                              AirShareFragment.AirShareCallback, AirShareService.AirShareSenderCallback, AirShareService.AirShareReceiverCallback {
+                                                              AirShareFragment.AirShareCallback,
+                                                              AirShareService.AirShareSenderCallback,
+                                                              AirShareService.AirShareReceiverCallback {
 
     /** Bundle parameters */
     private static final String BUNDLE_USERNAME    = "user";
@@ -68,20 +70,24 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
          * A transfer was received from a peer.
          * Called when mode is {@link Mode#RECEIVE} or {@link Mode#BOTH}
          */
-        public void onDataReceived(HashMap<String, Object> data, Peer sender);
+        public void onDataReceived(@Nullable HashMap<String, Object> headers,
+                                   @Nullable byte[] payload,
+                                   @NonNull Peer sender);
 
         /**
          * A transfer was sent to a peer.
          * Called when mode is {@link Mode#SEND} or {@link Mode#BOTH}
          */
-        public void onDataSent(HashMap<String, Object> data, Peer recipient);
+        public void onDataSent(@Nullable HashMap<String, Object> headers,
+                               @Nullable byte[] data,
+                               @NonNull Peer recipient);
 
         /**
          * The user selected recipient to receive data. Provide that data in a call
          * to {@link #sendDataToPeer(java.util.Map, pro.dbro.airshare.session.Peer)}
          * Called when mode is {@link Mode#BOTH}
          */
-        public void onDataRequestedForPeer(Peer recipient);
+        public void onDataRequestedForPeer(@NonNull Peer recipient);
 
         /**
          * The fragment is complete and should be removed by the host Activity.
@@ -289,7 +295,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
 
     @Override
     public void onTransferComplete(OutgoingTransfer transfer, Peer recipient, Exception exception) {
-        callback.onDataSent(new HashMap<>(transfer.getHeaderExtras()), recipient);
+        callback.onDataSent(new HashMap<>(transfer.getHeaderExtras()), transfer.getBodyBytes(), recipient);
 
         if (mode == Mode.SEND)
             callback.onFinished(null);
@@ -312,7 +318,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
 
     @Override
     public void onTransferComplete(IncomingTransfer transfer, Peer sender, Exception exception) {
-        callback.onDataReceived(new HashMap<>(transfer.getHeaderExtras()), sender);
+        callback.onDataReceived(new HashMap<>(transfer.getHeaderExtras()), transfer.getBodyBytes(), sender);
 
         if (mode == Mode.RECEIVE)
             callback.onFinished(null);

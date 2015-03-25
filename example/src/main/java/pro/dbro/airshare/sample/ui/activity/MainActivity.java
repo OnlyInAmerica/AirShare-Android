@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.FragmentManager;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -92,27 +94,39 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
     }
 
     @Override
-    public void onDataReceived(HashMap<String, Object> data, Peer sender) {
-        Timber.d("Got data from %s", sender.getAlias());
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Quote Received")
-                .setMessage(String.format("'%s'\n by %s", data.get("quote"), data.get("author")))
-                .setPositiveButton("Ok", null)
-                .show();
+    public void onDataReceived(@Nullable HashMap<String, Object> headers,
+                               @Nullable byte[] data,
+                               @NonNull Peer sender) {
+
+        // In this example app, we're only using the headers data
+        if (headers != null) {
+            Timber.d("Got data from %s", sender.getAlias());
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Quote Received")
+                    .setMessage(String.format("'%s'\n by %s", headers.get("quote"), headers.get("author")))
+                    .setPositiveButton("Ok", null)
+                    .show();
+        }
     }
 
     @Override
-    public void onDataSent(HashMap<String, Object> data, Peer recipient) {
-        Timber.d("Sent data to %s", recipient.getAlias());
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Quote Sent")
-                .setMessage(String.format("'%s'\n by %s", data.get("quote"), data.get("author")))
-                .setPositiveButton("Ok", null)
-                .show();
+    public void onDataSent(@Nullable HashMap<String, Object> headers,
+                           @Nullable byte[] data,
+                           @NonNull Peer recipient) {
+
+        // In this example app, we're only using the headers data
+        if (headers != null) {
+            Timber.d("Sent data to %s", recipient.getAlias());
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Quote Sent")
+                    .setMessage(String.format("'%s'\n by %s", headers.get("quote"), headers.get("author")))
+                    .setPositiveButton("Ok", null)
+                    .show();
+        }
     }
 
     @Override
-    public void onDataRequestedForPeer(Peer recipient) {
+    public void onDataRequestedForPeer(@NonNull Peer recipient) {
         // unused
     }
 
