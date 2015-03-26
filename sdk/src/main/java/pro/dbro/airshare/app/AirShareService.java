@@ -179,12 +179,8 @@ public class AirShareService extends Service implements ActivityRecevingMessages
             addOutgoingTransfer(new OutgoingTransfer(inputStream, name, length, recipient, sessionManager));
         }
 
-        public void offer(byte[] data, Peer recipient) {
-            addOutgoingTransfer(new OutgoingTransfer(data, recipient, sessionManager));
-        }
-
-        public void offer(Map<String, Object> data, Peer recipient) {
-            addOutgoingTransfer(new OutgoingTransfer(data, recipient, sessionManager));
+        public void offer(Map<String, Object> extraHeaders, byte[] data, Peer recipient) {
+            addOutgoingTransfer(new OutgoingTransfer(extraHeaders, data, recipient, sessionManager));
         }
 
         /**

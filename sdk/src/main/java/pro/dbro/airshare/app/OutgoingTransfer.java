@@ -1,5 +1,8 @@
 package pro.dbro.airshare.app;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
@@ -54,27 +57,34 @@ public class OutgoingTransfer extends Transfer implements IncomingMessageListene
 
     // <editor-fold desc="Outgoing Constructors">
 
-    public OutgoingTransfer(Map<String, Object> data, Peer recipient, SessionMessageScheduler messageSender) {
+    public OutgoingTransfer(@Nullable Map<String, Object> headers,
+                            @Nullable byte[] data, Peer recipient,
+                            @NonNull SessionMessageScheduler messageSender) {
 
         init(recipient, messageSender);
 
-        transferMessage = new DataTransferMessage(data);
+        transferMessage = DataTransferMessage.createOutgoing(headers, data);
         messageSender.sendMessage(transferMessage, recipient);
 
         state = State.AWAITING_DATA_ACK;
     }
 
-    public OutgoingTransfer(byte[] data, Peer recipient, SessionMessageScheduler messageSender) {
+    public OutgoingTransfer(byte[] data,
+                            Peer recipient,
+                            SessionMessageScheduler messageSender) {
 
         init(recipient, messageSender);
 
-        transferMessage = new DataTransferMessage(data, null);
+        transferMessage = DataTransferMessage.createOutgoing(null, data);
         messageSender.sendMessage(transferMessage, recipient);
 
         state = State.AWAITING_DATA_ACK;
     }
 
-    public OutgoingTransfer(File file, Peer recipient, SessionMessageScheduler messageSender) throws FileNotFoundException {
+    public OutgoingTransfer(File file,
+                            Peer recipient,
+                            SessionMessageScheduler messageSender)
+                            throws FileNotFoundException {
 
         init(recipient, messageSender);
 

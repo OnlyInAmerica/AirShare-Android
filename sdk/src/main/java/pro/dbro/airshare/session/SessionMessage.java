@@ -45,14 +45,13 @@ public abstract class SessionMessage {
     public static final String HEADER_TYPE         = "type";
     public static final String HEADER_BODY_LENGTH  = "body-length";
     public static final String HEADER_ID           = "id";
-    public static final String HEADER_EXTRA        = "extra";
 
     protected int                              version;
     protected @NonNull String                  type;
     protected int                              bodyLengthBytes;
     protected @NonNull String                  id;
     protected @NonNull Status                  status;
-    protected @NonNull HashMap<String, Object> headers;
+    protected @NonNull Map<String, Object>     headers;
     private   @NonNull byte[]                  serializedHeaders;
 
     /**
@@ -94,14 +93,8 @@ public abstract class SessionMessage {
         headerMap.put(HEADER_BODY_LENGTH, bodyLengthBytes);
         headerMap.put(HEADER_ID,          id);
 
-        Map<String, Object> extras = getHeaderExtras();
-        if (extras != null)
-            headerMap.put(HEADER_EXTRA,   extras);
-
         return headerMap;
     }
-
-    protected abstract Map<String, Object> getHeaderExtras();
 
     public @NonNull String getType() {
         return type;
@@ -114,7 +107,7 @@ public abstract class SessionMessage {
         return serializedHeaders.length;
     }
 
-    public @NonNull HashMap<String, Object> getHeaders() {
+    public @NonNull Map<String, Object> getHeaders() {
         return headers;
     }
 
@@ -132,13 +125,13 @@ public abstract class SessionMessage {
      * has length less than given length or is null (data ended precisely on the last call),
      * serialization is complete.
      *
-     * The general format of the serialized bytstream:
+     * The general format of the serialized bytestream:
      *
      * byte idx | description
      * ---------|------------
      * [0]      | SessionMessage version
      * [1-2]    | Header length
-     * [2-X]    | Header JSON. 'X' is value specified by Header length
+     * [3-X]    | Header JSON. 'X' is value specified by Header length
      * [X-Y]    | Body. 'Y' is value specified in 'body-length' entry of Header JSON.
      *
      * @param length should never be less than {@link #HEADER_LENGTH_BYTES} + {@link #HEADER_VERSION_BYTES}

@@ -14,11 +14,15 @@ public class DataTransferMessage extends SessionMessage {
 
     public static final String HEADER_TYPE = "datatransfer";
 
+    public static final String HEADER_EXTRA = "extra";
+
     private ByteBuffer data;
     private Map<String, Object> extraHeaders;
 
-    public DataTransferMessage(@NonNull HashMap<String, Object> headers,
-                               @Nullable byte[] body) {
+    // <editor-fold desc="Incoming Constructors">
+
+    DataTransferMessage(@NonNull Map<String, Object> headers,
+                        @Nullable byte[] body) {
 
         super((String) headers.get(SessionMessage.HEADER_ID));
         init();
@@ -33,29 +37,49 @@ public class DataTransferMessage extends SessionMessage {
 
     }
 
-    public DataTransferMessage(@NonNull byte[] data,
-                               @Nullable Map<String, Object> extraHeaders) {
+    // </editor-fold desc="Incoming Constructors">
+
+    // <editor-fold desc="Outgoing Constructors">
+
+    public static DataTransferMessage createOutgoing(@Nullable Map<String, Object> extraHeaders,
+                                                     @Nullable byte[] data) {
+
+        return new DataTransferMessage(data, extraHeaders);
+    }
+
+    // To avoid confusion between the incoming constructor which takes a
+    // Map of the completely deserialized headers and byte payload, we hide
+    // this contstructor behind the static creator 'createOutgoing'
+    private DataTransferMessage(@Nullable byte[] data,
+                                @Nullable Map<String, Object> extraHeaders) {
         super();
         this.extraHeaders = extraHeaders;
         init();
-        setBody(data);
-        bodyLengthBytes = data.length;
+        if (data != null) {
+            setBody(data);
+            bodyLengthBytes = data.length;
+        }
         serializeAndCacheHeaders();
 
     }
 
-    public DataTransferMessage(@Nullable Map<String, Object> extraHeaders) {
-        super();
-        this.extraHeaders = extraHeaders;
-        init();
-        setBody(new byte[]{});
-        bodyLengthBytes = 0;
-        serializeAndCacheHeaders();
-
-    }
+    // </editor-fold desc="Outgoing Constructors">
 
     private void init() {
         type = HEADER_TYPE;
+    }
+
+    @Override
+    protected HashMap<String, Object> populateHeaders() {
+        HashMap<String, Object> headerMap = super.populateHeaders();
+        if (extraHeaders != null)
+            headerMap.put(HEADER_EXTRA, extraHeaders);
+
+        headerMap.put(HEADER_TYPE,        type);
+        headerMap.put(HEADER_BODY_LENGTH, bodyLengthBytes);
+        headerMap.put(HEADER_ID,          id);
+
+        return headerMap;
     }
 
     public void setBody(@NonNull byte[] body) {
@@ -64,11 +88,6 @@ public class DataTransferMessage extends SessionMessage {
 
         data = ByteBuffer.wrap(body);
         status = Status.COMPLETE;
-    }
-
-    @Override
-    protected Map<String, Object> getHeaderExtras() {
-        return extraHeaders;
     }
 
     @Override

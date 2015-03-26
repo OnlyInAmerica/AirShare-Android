@@ -54,6 +54,8 @@ public abstract class Transfer {
     }
 
     public @Nullable Map<String, Object> getHeaderExtras() {
-        return (Map<String, Object>) transferMessage.getHeaders().get(SessionMessage.HEADER_EXTRA);
+        if (transferMessage == null || !(transferMessage instanceof DataTransferMessage))
+            return null;
+        return (Map<String, Object>) transferMessage.getHeaders().get(DataTransferMessage.HEADER_EXTRA);
     }
 }

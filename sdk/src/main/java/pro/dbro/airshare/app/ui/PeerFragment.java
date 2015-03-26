@@ -84,7 +84,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
 
         /**
          * The user selected recipient to receive data. Provide that data in a call
-         * to {@link #sendDataToPeer(java.util.Map, pro.dbro.airshare.session.Peer)}
+         * to {@link #sendDataToPeer(java.util.Map, byte[], pro.dbro.airshare.session.Peer)}
          * Called when mode is {@link Mode#BOTH}
          */
         public void onDataRequestedForPeer(@NonNull Peer recipient);
@@ -109,7 +109,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
     private String username;
     private String serviceName;
 
-    private HashMap payload;
+    private Map payload;
 
     public static PeerFragment toSend(@NonNull HashMap<String, Object> toSend,
                                       @NonNull String username,
@@ -205,8 +205,8 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
      * Should be called by a client in response to the PeerFragmentCallback method:
      * {@link pro.dbro.airshare.app.ui.PeerFragment.PeerFragmentListener#onDataRequestedForPeer(pro.dbro.airshare.session.Peer)}
      */
-    public void sendDataToPeer(Map<String, Object> data, Peer recipient) {
-        serviceBinder.offer(new JSONObject(data).toString().getBytes(), recipient);
+    public void sendDataToPeer(Map<String, Object> headers, byte[] data, Peer recipient) {
+        serviceBinder.offer(headers, data, recipient);
     }
 
     /** An available peer was selected from {@link pro.dbro.airshare.app.adapter.PeerAdapter} */
@@ -214,7 +214,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
         switch (mode) {
             case SEND:
 
-                serviceBinder.offer(payload, peer);
+                serviceBinder.offer(payload, null, peer);
                 break;
 
             case BOTH:

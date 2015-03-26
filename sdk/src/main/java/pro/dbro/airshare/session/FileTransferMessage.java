@@ -71,7 +71,7 @@ public class FileTransferMessage extends SessionMessage {
     /**
      * Construct a FileTransferMessage from deserialized headers and body.
      */
-    public FileTransferMessage(@NonNull HashMap<String, Object> headers,
+    public FileTransferMessage(@NonNull Map<String, Object> headers,
                                @Nullable InputStream body) {
 
         super((String) headers.get(SessionMessage.HEADER_ID));
@@ -121,7 +121,7 @@ public class FileTransferMessage extends SessionMessage {
         if (!offer.getType().equals(FileTransferMessage.HEADER_TYPE_OFFER))
             throw new IllegalArgumentException("Accept message should be created from offer message");
 
-        HashMap<String, Object> headers = offer.getHeaders();
+        Map<String, Object> headers = offer.getHeaders();
         headers.put(SessionMessage.HEADER_TYPE, FileTransferMessage.HEADER_TYPE_ACCEPT);
 
         return new FileTransferMessage(headers, null);
@@ -243,11 +243,6 @@ public class FileTransferMessage extends SessionMessage {
     }
 
     @Override
-    protected Map<String, Object> getHeaderExtras() {
-        return null;
-    }
-
-    @Override
     public @Nullable byte[] getBodyAtOffset(int offset, int length) {
         // NOTE : This method is written to be generic to a BufferedInputStream
         // for potential re-use as part of an abstract InputStreamMessage etc.
@@ -298,7 +293,7 @@ public class FileTransferMessage extends SessionMessage {
 
     @Override
     public int hashCode() {
-        HashMap headers = getHeaders();
+        Map headers = getHeaders();
         if (this.transferType != TransferType.TRANSFER) {
             return Objects.hash(headers.get(HEADER_TYPE),
                                 headers.get(HEADER_BODY_LENGTH),

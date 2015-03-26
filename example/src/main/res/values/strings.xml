@@ -16,7 +16,7 @@
     <!-- WelcomeFragment -->
     <string name="hello">hello</string>
     <string name="user_alias_hint">My Name</string>
-    <string name="choose_a_name">Choose a name</string>
+    <string name="choose_a_name">choose a name</string>
 
     <!-- WritingFragment -->
     <string name="quote_placeholder">And the end of all our exploring will be to arrive where we started and know the place for the first time.</string>
