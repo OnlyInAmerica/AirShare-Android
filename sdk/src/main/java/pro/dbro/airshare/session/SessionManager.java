@@ -16,7 +16,6 @@ import java.util.TreeSet;
 
 import pro.dbro.airshare.transport.Transport;
 import pro.dbro.airshare.transport.ble.BLETransport;
-import pro.dbro.airshare.transport.wifi.WifiTransport;
 import timber.log.Timber;
 
 /**
@@ -50,7 +49,6 @@ public class SessionManager implements Transport.TransportCallback,
     private BiMap<String, SessionMessageDeserializer> identifierReceivers   = HashBiMap.create();
     private BiMap<String, SessionMessageSerializer>   identifierSenders     = HashBiMap.create();
     private final BiMap<String, Peer>                 identifiedPeers       = HashBiMap.create();
-    private Set<String>                               identifyingPeers      = new HashSet<>();
 
     private final Object lock = new Object();
 
@@ -108,7 +106,7 @@ public class SessionManager implements Transport.TransportCallback,
         SessionMessageSerializer sender = identifierSenders.get(recipientIdentifier);
 
         if (transport != null)
-            transport.sendData(sender.serializeNextChunk(transport.getMtuForIdentifier(recipientIdentifier)),
+            transport.sendData(sender.getNextChunk(transport.getMtuForIdentifier(recipientIdentifier)),
                                recipientIdentifier);
         else
             Timber.d("Send queued. No transport available for identifier %s", recipientIdentifier);
@@ -149,7 +147,8 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     private boolean shouldIdentifyPeer(String identifier) {
-        return /*!identifiedPeers.containsKey(identifier) && */ !identifyingPeers.contains(identifier);
+        // TODO : Might have banned peers etc.
+        return true;
     }
 
     private void registerTransportForIdentifier(Transport transport, String identifier) {
@@ -227,7 +226,7 @@ public class SessionManager implements Transport.TransportCallback,
                     Timber.w("Cannot report %s message send, %s not yet identified",
                         message.getType(), identifier);
 
-                byte[] toSend = sender.serializeNextChunk(transport.getMtuForIdentifier(identifier));
+                byte[] toSend = sender.getNextChunk(transport.getMtuForIdentifier(identifier));
                 if (toSend != null)
                     transport.sendData(toSend, identifier);
             } else
@@ -244,9 +243,8 @@ public class SessionManager implements Transport.TransportCallback,
             case CONNECTED:
                 Timber.d("Connected to %s", identifier);
                 if (shouldIdentifyPeer(identifier)) {
-                    identifyingPeers.add(identifier);
                     if (!identifierSenders.containsKey(identifier)) {
-                        Timber.d("Sending identity to %s", identifier);
+                        Timber.d("Queuing identity to %s", identifier);
                         identifierSenders.put(identifier, new SessionMessageSerializer(localIdentityMessage));
                     } else
                         Timber.w("Outgoing messages already exist for unidentified peer %s", identifier);
@@ -261,12 +259,11 @@ public class SessionManager implements Transport.TransportCallback,
 
                     boolean sendingIdentity = sender.getCurrentMessage() instanceof IdentityMessage;
 
-                    byte[] toSend = sender.serializeNextChunk(transport.getMtuForIdentifier(identifier));
+                    byte[] toSend = sender.getNextChunk(transport.getMtuForIdentifier(identifier));
                     if (toSend == null) return;
 
                     if (transport.sendData(toSend, identifier)) {
                         if (sendingIdentity) {
-                            identifyingPeers.add(identifier);
                             Timber.d("Sent identity to %s", identifier);
                         }
                     } else
@@ -279,7 +276,6 @@ public class SessionManager implements Transport.TransportCallback,
 
             case DISCONNECTED:
                 Timber.d("Disconnected from %s", identifier);
-                identifyingPeers.remove(identifier);
 
                 if (identifiedPeers.containsKey(identifier))
                     callback.peerStatusUpdated(identifiedPeers.get(identifier), Transport.ConnectionStatus.DISCONNECTED);
@@ -327,22 +323,15 @@ public class SessionManager implements Transport.TransportCallback,
                     Peer peer = ((IdentityMessage) message).getPeer();
 
                     boolean newIdentity = !identifiedPeers.containsKey(senderIdentifier);
-                    boolean sentIdentity = identifyingPeers.contains(senderIdentifier);
 
-                    identifyingPeers.remove(senderIdentifier);
                     identifiedPeers.put(senderIdentifier, peer);
 
                     if (newIdentity) {
-                        Timber.d("Received identity for %s.", senderIdentifier);
+                        Timber.d("Received identity for %s. Responding with own.", senderIdentifier);
                         // As far as upper layers are concerned, connection events occur when the remote
                         // peer is identified.
-                        callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED);
-                    }
-
-                    if (!sentIdentity) {
-                        Timber.d("Responding to rx'd identity with local identity");
-                        identifyingPeers.add(senderIdentifier);
                         sendMessage(localIdentityMessage, peer);
+                        callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED);
                     }
 
                 } else if (identifiedPeers.containsKey(senderIdentifier)) {

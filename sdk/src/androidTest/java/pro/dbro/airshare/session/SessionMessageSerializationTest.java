@@ -168,7 +168,7 @@ public class SessionMessageSerializationTest extends ApplicationTestCase<Applica
         );
 
         while (true) {
-            byte[] chunk = sender.serializeNextChunk(BLETransport.DEFAULT_MTU_BYTES);
+            byte[] chunk = sender.getNextChunk(BLETransport.DEFAULT_MTU_BYTES);
             if (chunk == null) break;
 
             serializedBytes.addAndGet(chunk.length);

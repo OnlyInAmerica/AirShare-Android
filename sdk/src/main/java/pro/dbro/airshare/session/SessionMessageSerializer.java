@@ -19,6 +19,7 @@ public class SessionMessageSerializer {
 
     private ArrayList<Pair<Integer, SessionMessage>> completedMessages;
     private ArrayDeque<SessionMessage> messages;
+    private byte[] lastChunk;
     private int marker;
     private int serializeCount;
     private int ackCount;
@@ -56,8 +57,12 @@ public class SessionMessageSerializer {
      *
      * If {@param length} extends beyond the bytes left in the current message,
      * the result will be a byte[] of lesser length containing the completion of the current message.
+     *
+     * The chunk returned will not advance until a corresponding call to {@link #ackChunkDelivery()}
      */
-    public byte[] serializeNextChunk(int length) {
+    public byte[] getNextChunk(int length) {
+        if (lastChunk != null) return lastChunk;
+
         if (messages.size() == 0) return null;
         length = Math.min(length, 500 * 1024);
         byte[] result = messages.peek().serialize(marker, length);
@@ -67,14 +72,15 @@ public class SessionMessageSerializer {
                     marker, messages.peek().getTotalLengthBytes());
             completedMessages.add(new Pair<>(serializeCount, messages.poll()));
             marker = 0;
-            return serializeNextChunk(length);
+            return getNextChunk(length);
 
         } else {
             marker += result.length;
             serializeCount++;
-            //Timber.d("serializeNextChunk");
+            //Timber.d("getNextChunk");
         }
 
+        lastChunk = result;
         return result;
     }
 
@@ -82,7 +88,7 @@ public class SessionMessageSerializer {
      * @return a Pair containing the message delivery progress and the
      * {@link pro.dbro.airshare.session.SessionMessage} corresponding
      * to the chunk being acknowledged. Assumes sequential delivery of chunks returned
-     * by {@link #serializeNextChunk(int)}
+     * by {@link #getNextChunk(int)}
      */
     public @Nullable Pair<SessionMessage, Float> ackChunkDelivery() {
         ackCount++;
@@ -104,8 +110,9 @@ public class SessionMessageSerializer {
             Timber.d("ackChunkDelivery reporting current progress %f", progress);
         }
 
-        if (message == null) return null;
+        if (message == null) return null; // Acknowledgements have fallen out of sync!
 
+        lastChunk = null;
         return new Pair<>(message, progress);
     }
 

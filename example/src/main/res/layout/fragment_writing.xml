@@ -45,7 +45,7 @@
         android:layout_height="25dp"
         android:layout_toStartOf="@id/author_entry"
         android:layout_alignBottom="@id/author_entry"
-        android:layout_marginBottom="11dp"
+        android:layout_marginBottom="8dp"
         android:alpha=".7"
         android:src="@mipmap/ic_user"/>
 
