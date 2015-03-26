@@ -11,7 +11,8 @@
         <service android:name="pro.dbro.airshare.app.AirShareService" />
 
         <activity
-            android:name=".ui.activity.MainActivity" >
+            android:name=".ui.activity.MainActivity"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
