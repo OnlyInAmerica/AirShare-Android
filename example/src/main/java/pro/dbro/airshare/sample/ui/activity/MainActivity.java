@@ -3,6 +3,7 @@ package pro.dbro.airshare.sample.ui.activity;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.FragmentManager;
+import android.app.FragmentTransaction;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -45,7 +46,7 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
             public void onBackStackChanged() {
                 int numEntries = getFragmentManager().getBackStackEntryCount();
                 if (numEntries == 0) {
-                    // Reset to "Home" State (WritingFragment)
+                    // Back at "Home" State (WritingFragment)
                     receiveButton.setVisibility(View.VISIBLE);
                     title.setText("");
                 }
@@ -69,6 +70,7 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, PeerFragment.toSend(dataToShare, username, SERVICE_NAME))
                 .addToBackStack(null)
+                .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
 
         receiveButton.setVisibility(View.GONE);
@@ -79,6 +81,7 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, PeerFragment.toReceive(username, SERVICE_NAME))
                 .addToBackStack(null)
+                .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
 
         receiveButton.setVisibility(View.GONE);
@@ -88,6 +91,7 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
     private void showWritingFragment() {
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, new QuoteWritingFragment())
+                .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
 
         receiveButton.setVisibility(View.VISIBLE);
@@ -132,6 +136,7 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
 
     @Override
     public void onFinished(Exception exception) {
-        showWritingFragment();
+        // Remove last fragment
+        getFragmentManager().popBackStack();
     }
 }
