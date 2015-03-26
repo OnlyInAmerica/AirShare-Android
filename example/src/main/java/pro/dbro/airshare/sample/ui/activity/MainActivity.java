@@ -11,6 +11,8 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toolbar;
 
+import com.nispok.snackbar.Snackbar;
+
 import java.util.HashMap;
 
 import pro.dbro.airshare.app.ui.PeerFragment;
@@ -149,13 +151,9 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
         // In this example app, we're only using the headers data
         if (headers != null) {
             Timber.d("Sent data to %s", recipient.getAlias());
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setTitle(getString(R.string.quote_sent))
-                    .setMessage(getString(R.string.quote_and_author,
-                            headers.get("quote"),
-                            headers.get("author")))
-                    .setPositiveButton(getString(R.string.ok), null)
-                    .show();
+            Snackbar.with(getApplicationContext())
+                    .text(R.string.quote_sent)
+                    .show(this);
         }
     }
 
