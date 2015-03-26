@@ -278,6 +278,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
 
     @Override
     public void onFinished(Exception e) {
+        if (callback == null) return; // Fragment was detached but not destroyed)
         callback.onFinished(e);
     }
 
@@ -295,6 +296,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
 
     @Override
     public void onTransferComplete(OutgoingTransfer transfer, Peer recipient, Exception exception) {
+        if (callback == null) return; // Fragment was detached but not destroyed)
         callback.onDataSent(new HashMap<>(transfer.getHeaderExtras()), transfer.getBodyBytes(), recipient);
 
         if (mode == Mode.SEND)
@@ -318,6 +320,8 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
 
     @Override
     public void onTransferComplete(IncomingTransfer transfer, Peer sender, Exception exception) {
+        if (callback == null) return; // Fragment was detached but not destroyed)
+
         callback.onDataReceived(new HashMap<>(transfer.getHeaderExtras()), transfer.getBodyBytes(), sender);
 
         if (mode == Mode.RECEIVE)
