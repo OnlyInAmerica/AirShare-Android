@@ -235,14 +235,12 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
                 peerAdapter.notifyPeerAdded(peer);
 
                 emptyContainer.setVisibility(View.GONE);
-                recyclerView.setVisibility(View.VISIBLE);
                 break;
 
             case DISCONNECTED:
                 peerAdapter.notifyPeerRemoved(peer);
                 if (peerAdapter.getItemCount() == 0) {
                     emptyContainer.setVisibility(View.VISIBLE);
-                    recyclerView.setVisibility(View.GONE);
                 }
                 break;
         }

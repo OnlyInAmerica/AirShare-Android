@@ -27,10 +27,12 @@ public class PeerAdapter extends RecyclerView.Adapter<PeerAdapter.ViewHolder> {
     // Provide a reference to the type of views that you are using
     // (custom viewholder)
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        public TextView mTextView;
+        public TextView textView;
+        public ViewGroup container;
         public ViewHolder(View v) {
             super(v);
-            mTextView = (TextView) v.findViewById(R.id.text);
+            container = (ViewGroup) v;
+            textView = (TextView) v.findViewById(R.id.text);
         }
     }
 
@@ -53,7 +55,7 @@ public class PeerAdapter extends RecyclerView.Adapter<PeerAdapter.ViewHolder> {
                 .inflate(R.layout.peer_item, parent, false);
         // set the view's size, margins, paddings and layout parameters
         ViewHolder holder = new ViewHolder(v);
-        holder.mTextView.setOnClickListener(new View.OnClickListener() {
+        holder.container.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (peerClickListener != null && v.getTag() != null) {
@@ -70,11 +72,11 @@ public class PeerAdapter extends RecyclerView.Adapter<PeerAdapter.ViewHolder> {
         // - get element from your dataset at this position
         // - replace the contents of the view with that element
         Peer peer = peers.get(position);
-        holder.mTextView.setText(peer.getAlias() == null ?
-                                    "Unnamed (key=" + Base64.encodeToString(peer.getPublicKey(), Base64.DEFAULT).substring(0, 5) + "...)" :
-                                    peer.getAlias());
-        holder.mTextView.setTag(peer);
-
+        holder.textView.setText(peer.getAlias() == null ?
+                                "Unnamed (key=" + Base64.encodeToString(peer.getPublicKey(),
+                                                                        Base64.DEFAULT).substring(0, 5) + "...)" :
+                                peer.getAlias());
+        holder.container.setTag(peer);
     }
 
     // Return the size of your dataset (invoked by the layout manager)
