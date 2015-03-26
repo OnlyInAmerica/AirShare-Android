@@ -5,6 +5,13 @@
 
     <!-- MainActivity -->
     <string name="receive">Receive</string>
+    <string name="sending_quote">Sending Quote</string>
+    <string name="as_name">as \'%1$s\'</string>
+    <string name="receiving_quote">Receiving Quote</string>
+    <string name="quote_received">Quote Received</string>
+    <string name="ok">OK</string>
+    <string name="quote_and_author">\'%1$s\'\n by %2$s</string>
+    <string name="quote_sent">Quote Sent</string>
 
     <!-- WelcomeFragment -->
     <string name="hello">hello</string>

@@ -7,9 +7,9 @@ import android.app.FragmentTransaction;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
-import android.widget.TextView;
+import android.widget.Toolbar;
 
 import java.util.HashMap;
 
@@ -20,22 +20,34 @@ import pro.dbro.airshare.sample.ui.fragment.WelcomeFragment;
 import pro.dbro.airshare.session.Peer;
 import timber.log.Timber;
 
-public class MainActivity extends Activity implements WelcomeFragment.WelcomeFragmentListener,
+public class MainActivity extends Activity implements Toolbar.OnMenuItemClickListener,
+                                                      WelcomeFragment.WelcomeFragmentListener,
                                                       QuoteWritingFragment.WritingFragmentListener,
                                                       PeerFragment.PeerFragmentListener {
 
     private static final String SERVICE_NAME = "AirShareDemo";
 
     private String username;
-    private Button receiveButton;
-    private TextView title;
+    private Toolbar toolbar;
+    private MenuItem receiveMenuItem;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        receiveButton = (Button) findViewById(R.id.receive_button);
-        title = (TextView) findViewById(R.id.title);
+        toolbar = (Toolbar) findViewById(R.id.toolbar);
+
+        toolbar.inflateMenu(R.menu.activity_main);
+
+        receiveMenuItem = toolbar.getMenu().findItem(R.id.action_receive);
+        receiveMenuItem.setVisible(false);
+        toolbar.setOnMenuItemClickListener(this);
+        toolbar.setNavigationOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                getFragmentManager().popBackStack();
+            }
+        });
 
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, new WelcomeFragment())
@@ -47,11 +59,20 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
                 int numEntries = getFragmentManager().getBackStackEntryCount();
                 if (numEntries == 0) {
                     // Back at "Home" State (WritingFragment)
-                    receiveButton.setVisibility(View.VISIBLE);
-                    title.setText("");
+                    receiveMenuItem.setVisible(true);
+                    showSubtitle(false);
+                    toolbar.setTitle("");
+                    toolbar.setNavigationIcon(null);
                 }
             }
         });
+    }
+
+    private void showSubtitle(boolean doShow) {
+        if (doShow) {
+            toolbar.setSubtitle(getString(R.string.as_name, username));
+        } else
+            toolbar.setSubtitle("");
     }
 
     @Override
@@ -73,19 +94,23 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
 
-        receiveButton.setVisibility(View.GONE);
-        title.setText("Sending Quote");
+        receiveMenuItem.setVisible(false);
+        toolbar.setNavigationIcon(R.mipmap.ic_cancel);
+        toolbar.setTitle(getString(R.string.sending_quote));
+        showSubtitle(true);
     }
 
-    public void onReceiveButtonClick(View button) {
+    public void onReceiveButtonClick() {
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, PeerFragment.toReceive(username, SERVICE_NAME))
                 .addToBackStack(null)
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
 
-        receiveButton.setVisibility(View.GONE);
-        title.setText("Receiving Quote");
+        receiveMenuItem.setVisible(false);
+        toolbar.setNavigationIcon(R.mipmap.ic_cancel);
+        toolbar.setTitle(getString(R.string.receiving_quote));
+        showSubtitle(true);
     }
 
     private void showWritingFragment() {
@@ -94,7 +119,8 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
 
-        receiveButton.setVisibility(View.VISIBLE);
+        receiveMenuItem.setVisible(true);
+        showSubtitle(false);
     }
 
     @Override
@@ -106,9 +132,11 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         if (headers != null) {
             Timber.d("Got data from %s", sender.getAlias());
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setTitle("Quote Received")
-                    .setMessage(String.format("'%s'\n by %s", headers.get("quote"), headers.get("author")))
-                    .setPositiveButton("Ok", null)
+            builder.setTitle(getString(R.string.quote_received))
+                    .setMessage(getString(R.string.quote_and_author,
+                                          headers.get("quote"),
+                                          headers.get("author")))
+                    .setPositiveButton(getString(R.string.ok), null)
                     .show();
         }
     }
@@ -122,9 +150,11 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
         if (headers != null) {
             Timber.d("Sent data to %s", recipient.getAlias());
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setTitle("Quote Sent")
-                    .setMessage(String.format("'%s'\n by %s", headers.get("quote"), headers.get("author")))
-                    .setPositiveButton("Ok", null)
+            builder.setTitle(getString(R.string.quote_sent))
+                    .setMessage(getString(R.string.quote_and_author,
+                            headers.get("quote"),
+                            headers.get("author")))
+                    .setPositiveButton(getString(R.string.ok), null)
                     .show();
         }
     }
@@ -138,5 +168,16 @@ public class MainActivity extends Activity implements WelcomeFragment.WelcomeFra
     public void onFinished(Exception exception) {
         // Remove last fragment
         getFragmentManager().popBackStack();
+    }
+
+    @Override
+    public boolean onMenuItemClick(MenuItem item) {
+        switch (item.getItemId()){
+            case R.id.action_receive:
+                onReceiveButtonClick();
+                return true;
+        }
+
+        return false;
     }
 }

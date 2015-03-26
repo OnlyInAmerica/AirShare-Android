@@ -2,37 +2,19 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:animateLayoutChanges="true"
     android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
     <Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:background="@color/primary">
-
-        <TextView
-            android:id="@+id/title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="start"
-            android:textSize="25sp"
-            android:textColor="@android:color/white"/>
-
-        <Button
-            android:id="@+id/receive_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:gravity="center"
-            android:layout_marginEnd="16dp"
-            android:onClick="onReceiveButtonClick"
-            android:visibility="gone"
-            android:textColor="@android:color/white"
-            android:textSize="18sp"
-            android:text="@string/receive"/>
-
-    </Toolbar>
+        android:layout_height="wrap_content"
+        android:animateLayoutChanges="true"
+        android:titleTextAppearance="@android:style/TextAppearance.Material.Large.Inverse"
+        android:subtitleTextAppearance="@android:style/TextAppearance.Material.Medium.Inverse"
+        android:background="@color/primary"
+        android:paddingBottom="8dp"/>
     <!-- on API 21 background will be ?attr/colorPrimary -->
     <!-- on API 21 minHeight will be ?attr/actionBarSize-->
 
