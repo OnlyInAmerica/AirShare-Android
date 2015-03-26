@@ -49,6 +49,7 @@ public class SessionManager implements Transport.TransportCallback,
     private BiMap<String, SessionMessageDeserializer> identifierReceivers   = HashBiMap.create();
     private BiMap<String, SessionMessageSerializer>   identifierSenders     = HashBiMap.create();
     private final BiMap<String, Peer>                 identifiedPeers       = HashBiMap.create();
+    private Set<String>                               identifyingPeers      = new HashSet<>();
 
     private final Object lock = new Object();
 
@@ -148,7 +149,7 @@ public class SessionManager implements Transport.TransportCallback,
 
     private boolean shouldIdentifyPeer(String identifier) {
         // TODO : Might have banned peers etc.
-        return true;
+        return !identifyingPeers.contains(identifier);
     }
 
     private void registerTransportForIdentifier(Transport transport, String identifier) {
@@ -211,6 +212,11 @@ public class SessionManager implements Transport.TransportCallback,
                 Peer recipient = identifiedPeers.get(identifier);
                 if (recipient != null) {
                     if (progress == 1) {
+
+                        if (message.equals(localIdentityMessage)) {
+                            Timber.d("Local identity acknowledged by recipient");
+                            identifyingPeers.add(identifier);
+                        }
 
                         callback.messageSentToPeer(message,
                                 identifiedPeers.get(identifier),
@@ -280,6 +286,7 @@ public class SessionManager implements Transport.TransportCallback,
                 if (identifiedPeers.containsKey(identifier))
                     callback.peerStatusUpdated(identifiedPeers.get(identifier), Transport.ConnectionStatus.DISCONNECTED);
 
+                identifyingPeers.remove(identifier);
                 identifiedPeers.remove(identifier);
                 identifierSenders.remove(identifier);
                 identifierReceivers.remove(identifier);
@@ -324,6 +331,7 @@ public class SessionManager implements Transport.TransportCallback,
 
                     boolean newIdentity = !identifiedPeers.containsKey(senderIdentifier);
 
+                    identifyingPeers.remove(senderIdentifier);
                     identifiedPeers.put(senderIdentifier, peer);
 
                     if (newIdentity) {
