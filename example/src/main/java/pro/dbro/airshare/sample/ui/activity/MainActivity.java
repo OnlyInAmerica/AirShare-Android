@@ -2,6 +2,7 @@ package pro.dbro.airshare.sample.ui.activity;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Fragment;
 import android.app.FragmentManager;
 import android.app.FragmentTransaction;
 import android.os.Bundle;
@@ -16,6 +17,7 @@ import com.nispok.snackbar.Snackbar;
 import java.util.HashMap;
 
 import pro.dbro.airshare.app.ui.PeerFragment;
+import pro.dbro.airshare.sample.PrefsManager;
 import pro.dbro.airshare.sample.R;
 import pro.dbro.airshare.sample.ui.fragment.QuoteWritingFragment;
 import pro.dbro.airshare.sample.ui.fragment.WelcomeFragment;
@@ -29,7 +31,6 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
 
     private static final String SERVICE_NAME = "AirShareDemo";
 
-    private String username;
     private Toolbar toolbar;
     private MenuItem receiveMenuItem;
 
@@ -51,8 +52,12 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
             }
         });
 
+        Fragment baseFragment = PrefsManager.needsUsername(this) ?
+                                    new WelcomeFragment() :
+                                    new QuoteWritingFragment();
+
         getFragmentManager().beginTransaction()
-                .replace(R.id.frame, new WelcomeFragment())
+                .replace(R.id.frame, baseFragment)
                 .commit();
 
         getFragmentManager().addOnBackStackChangedListener(new FragmentManager.OnBackStackChangedListener() {
@@ -72,15 +77,14 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
 
     private void showSubtitle(boolean doShow) {
         if (doShow) {
-            toolbar.setSubtitle(getString(R.string.as_name, username));
+            toolbar.setSubtitle(getString(R.string.as_name, PrefsManager.getUsername(this)));
         } else
             toolbar.setSubtitle("");
     }
 
     @Override
     public void onUsernameSelected(String username) {
-        this.username = username;
-
+        PrefsManager.setUsername(this, username);
         showWritingFragment();
     }
 
@@ -91,7 +95,7 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
         dataToShare.put("author", author);
 
         getFragmentManager().beginTransaction()
-                .replace(R.id.frame, PeerFragment.toSend(dataToShare, username, SERVICE_NAME))
+                .replace(R.id.frame, PeerFragment.toSend(dataToShare, PrefsManager.getUsername(this), SERVICE_NAME))
                 .addToBackStack(null)
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
@@ -104,7 +108,7 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
 
     public void onReceiveButtonClick() {
         getFragmentManager().beginTransaction()
-                .replace(R.id.frame, PeerFragment.toReceive(username, SERVICE_NAME))
+                .replace(R.id.frame, PeerFragment.toReceive(PrefsManager.getUsername(this), SERVICE_NAME))
                 .addToBackStack(null)
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
