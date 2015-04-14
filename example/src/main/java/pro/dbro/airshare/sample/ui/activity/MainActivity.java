@@ -43,7 +43,6 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
         toolbar.inflateMenu(R.menu.activity_main);
 
         receiveMenuItem = toolbar.getMenu().findItem(R.id.action_receive);
-        receiveMenuItem.setVisible(false);
         toolbar.setOnMenuItemClickListener(this);
         toolbar.setNavigationOnClickListener(new View.OnClickListener() {
             @Override
@@ -52,9 +51,14 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
             }
         });
 
-        Fragment baseFragment = PrefsManager.needsUsername(this) ?
-                                    new WelcomeFragment() :
-                                    new QuoteWritingFragment();
+        Fragment baseFragment;
+
+        if (PrefsManager.needsUsername(this)) {
+            baseFragment = new WelcomeFragment();
+            receiveMenuItem.setVisible(false);
+        } else
+            baseFragment = new QuoteWritingFragment();
+
 
         getFragmentManager().beginTransaction()
                 .replace(R.id.frame, baseFragment)
