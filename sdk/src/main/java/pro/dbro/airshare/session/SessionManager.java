@@ -209,14 +209,14 @@ public class SessionManager implements Transport.TransportCallback,
                         progress * 100,
                         identifier);
 
+                if (progress == 1 && message.equals(localIdentityMessage)) {
+                    Timber.d("Local identity acknowledged by recipient");
+                    identifyingPeers.add(identifier);
+                }
+
                 Peer recipient = identifiedPeers.get(identifier);
                 if (recipient != null) {
                     if (progress == 1) {
-
-                        if (message.equals(localIdentityMessage)) {
-                            Timber.d("Local identity acknowledged by recipient");
-                            identifyingPeers.add(identifier);
-                        }
 
                         callback.messageSentToPeer(message,
                                 identifiedPeers.get(identifier),
@@ -285,6 +285,8 @@ public class SessionManager implements Transport.TransportCallback,
 
                 if (identifiedPeers.containsKey(identifier))
                     callback.peerStatusUpdated(identifiedPeers.get(identifier), Transport.ConnectionStatus.DISCONNECTED);
+                else
+                    Timber.w("Could not report disconnection, peer not identified");
 
                 identifyingPeers.remove(identifier);
                 identifiedPeers.remove(identifier);
@@ -329,16 +331,17 @@ public class SessionManager implements Transport.TransportCallback,
 
                     Peer peer = ((IdentityMessage) message).getPeer();
 
+                    boolean sentIdentityToSender = identifyingPeers.contains(senderIdentifier);
                     boolean newIdentity = !identifiedPeers.containsKey(senderIdentifier);
 
                     identifyingPeers.remove(senderIdentifier);
                     identifiedPeers.put(senderIdentifier, peer);
 
                     if (newIdentity) {
-                        Timber.d("Received identity for %s. Responding with own.", senderIdentifier);
+                        Timber.d("Received identity for %s. %s", senderIdentifier, sentIdentityToSender ? "" : "Responding with own.");
                         // As far as upper layers are concerned, connection events occur when the remote
                         // peer is identified.
-                        sendMessage(localIdentityMessage, peer);
+                        if (!sentIdentityToSender) sendMessage(localIdentityMessage, peer);
                         callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED);
                     }
 

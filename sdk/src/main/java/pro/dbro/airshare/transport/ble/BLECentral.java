@@ -152,7 +152,10 @@ public class BLECentral {
 
         BluetoothGatt recipient = connectedDevices.get(deviceAddress);
         if (recipient != null) {
-            return recipient.writeCharacteristic(discoveredCharacteristic);
+            boolean success = recipient.writeCharacteristic(discoveredCharacteristic);
+            // write type should be 2 (Default)
+            Timber.d("Wrote %d bytes with type %d to %s with success %b", data.length, discoveredCharacteristic.getWriteType(), deviceAddress, success);
+            return success;
         }
         Timber.w("Unable to write " + deviceAddress);
         return false;
@@ -218,63 +221,64 @@ public class BLECentral {
 
                         synchronized (connectedDevices) {
 
-                            if (status == BluetoothGatt.GATT_SUCCESS) {
+                            // It appears that certain events (like disconnection) won't have a GATT_SUCCESS status
+                            // even when they proceed as expected, at least with the Motorola bluetooth stack
+                            if (status != BluetoothGatt.GATT_SUCCESS)
+                                Timber.w("onConnectionStateChange with newState %d and non-success status %s", newState, gatt.getDevice().getAddress());
 
-                                Set<BluetoothGattCharacteristic> characteristicSet;
+                            Set<BluetoothGattCharacteristic> characteristicSet;
 
-                                switch (newState) {
-                                    case BluetoothProfile.STATE_DISCONNECTING:
-                                        Timber.d("Disconnecting from " + gatt.getDevice().getAddress());
+                            switch (newState) {
+                                case BluetoothProfile.STATE_DISCONNECTING:
+                                    Timber.d("Disconnecting from " + gatt.getDevice().getAddress());
 
-                                        characteristicSet = discoveredCharacteristics.get(gatt.getDevice().getAddress());
+                                    characteristicSet = discoveredCharacteristics.get(gatt.getDevice().getAddress());
+                                    for (BluetoothGattCharacteristic characteristic : characteristicSet) {
+                                        if (notifyUUIDs.contains(characteristic.getUuid())) {
+                                            Timber.d("Attempting to unsubscribe on disconneting");
+                                            setIndictaionSubscription(gatt, characteristic, false);
+                                        }
+                                    }
+                                    discoveredCharacteristics.remove(gatt.getDevice().getAddress());
+
+                                    break;
+
+                                case BluetoothProfile.STATE_DISCONNECTED:
+                                    Timber.d("Disconnected from " + gatt.getDevice().getAddress());
+                                    connectedDevices.remove(gatt.getDevice().getAddress());
+                                    connectingDevices.remove(gatt.getDevice().getAddress());
+                                    if (transportCallback != null)
+                                        transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
+                                                gatt.getDevice().getAddress(),
+                                                Transport.ConnectionStatus.DISCONNECTED,
+                                                null);
+
+                                    characteristicSet = discoveredCharacteristics.get(gatt.getDevice().getAddress());
+                                    if (characteristicSet != null) { // Have we handled unsubscription on DISCONNECTING?
                                         for (BluetoothGattCharacteristic characteristic : characteristicSet) {
                                             if (notifyUUIDs.contains(characteristic.getUuid())) {
-                                                Timber.d("Attempting to unsubscribe on disconneting");
+                                                Timber.d("Attempting to unsubscribe before disconnet");
                                                 setIndictaionSubscription(gatt, characteristic, false);
                                             }
                                         }
-                                        discoveredCharacteristics.remove(gatt.getDevice().getAddress());
+                                        // Gatt will be closed on result of descriptor write
+                                    } else
+                                        gatt.close();
 
-                                        break;
+                                    discoveredCharacteristics.remove(gatt.getDevice().getAddress());
 
-                                    case BluetoothProfile.STATE_DISCONNECTED:
-                                        Timber.d("Disconnected from " + gatt.getDevice().getAddress());
-                                        connectedDevices.remove(gatt.getDevice().getAddress());
-                                        connectingDevices.remove(gatt.getDevice().getAddress());
-                                        if (transportCallback != null)
-                                            transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
-                                                    gatt.getDevice().getAddress(),
-                                                    Transport.ConnectionStatus.DISCONNECTED,
-                                                    null);
+                                    break;
 
-                                        characteristicSet = discoveredCharacteristics.get(gatt.getDevice().getAddress());
-                                        if (characteristicSet != null) { // Have we handled unsubscription on DISCONNECTING?
-                                            for (BluetoothGattCharacteristic characteristic : characteristicSet) {
-                                                if (notifyUUIDs.contains(characteristic.getUuid())) {
-                                                    Timber.d("Attempting to unsubscribe before disconnet");
-                                                    setIndictaionSubscription(gatt, characteristic, false);
-                                                }
-                                            }
-                                            // Gatt will be closed on result of descriptor write
-                                        } else
-                                            gatt.close();
+                                case BluetoothProfile.STATE_CONNECTED:
+                                    // Though we're connected, we shouldn't actually report
+                                    // connection until we've discovered all service characteristics
 
-                                        discoveredCharacteristics.remove(gatt.getDevice().getAddress());
+                                    boolean mtuSuccess = gatt.requestMtu(BLETransport.DEFAULT_MTU_BYTES);
 
-                                        break;
-
-                                    case BluetoothProfile.STATE_CONNECTED:
-                                        // Though we're connected, we shouldn't actually report
-                                        // connection until we've discovered all service characteristics
-
-                                        boolean mtuSuccess = gatt.requestMtu(BLETransport.DEFAULT_MTU_BYTES);
-
-                                        Timber.d("Connected to %s. Requested MTU success %b", gatt.getDevice().getAddress(),
-                                                mtuSuccess);
-                                        break;
-                                }
-                            } else
-                                Timber.w("Unsuccessful connection event %d with %s", newState, gatt.getDevice().getAddress());
+                                    Timber.d("Connected to %s. Requested MTU success %b", gatt.getDevice().getAddress(),
+                                            mtuSuccess);
+                                    break;
+                            }
 
                             super.onConnectionStateChange(gatt, status, newState);
                         }

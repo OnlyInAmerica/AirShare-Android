@@ -264,20 +264,21 @@ public class BLEPeripheral {
 
             @Override
             public void onCharacteristicWriteRequest(BluetoothDevice remoteCentral, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
-                Timber.d(String.format("onCharacteristicWriteRequest for request %d on characteristic %s with offset %d", requestId, characteristic.getUuid().toString().substring(0,3), offset));
+                Timber.d("onCharacteristicWriteRequest for request %d char %s offset %d length %d responseNeeded %b", requestId, characteristic.getUuid().toString().substring(0,3), offset, value == null ? 0 : value.length, responseNeeded);
 
                 BluetoothGattCharacteristic localCharacteristic = gattServer.getService(serviceUUID).getCharacteristic(characteristic.getUuid());
                 if (localCharacteristic != null) {
+
+                    // Must send response before notifying callback (which might trigger data send before remote central received ack)
+                    if (responseNeeded) {
+                        boolean success = gattServer.sendResponse(remoteCentral, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
+                        Timber.d("Ack'd write with success " + success);
+                    }
 
                     if (transportCallback != null)
                         transportCallback.dataReceivedFromIdentifier(BLETransportCallback.DeviceType.PERIPHERAL,
                                                                      value,
                                                                      remoteCentral.getAddress());
-
-                    if (responseNeeded) {
-                        boolean success = gattServer.sendResponse(remoteCentral, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
-                        Timber.d("Ack'd write with success " + success);
-                    }
 
                 } else {
                     Timber.d("CharacteristicWriteRequest. Unrecognized characteristic " + characteristic.getUuid().toString());

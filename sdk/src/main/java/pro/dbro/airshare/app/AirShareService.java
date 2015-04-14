@@ -288,6 +288,8 @@ public class AirShareService extends Service implements ActivityRecevingMessages
             public void run() {
                 if (pCallback != null)
                     pCallback.peerStatusUpdated(peer, newStatus);
+                else
+                    Timber.w("Could not report peer status update, no callback registered");
             }
         });
 

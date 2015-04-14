@@ -101,6 +101,7 @@ public class SessionMessageSerializer {
                 message = messagePair.second;
                 progress = ((float) ackCount) / messagePair.first;
                 Timber.d("ackChunkDelivery reporting prev msg progress %f", progress);
+                break;
             }
         }
 

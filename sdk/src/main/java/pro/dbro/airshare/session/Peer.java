@@ -60,7 +60,7 @@ public class Peer {
         if (getClass().equals(obj.getClass()))
         {
             Peer other = (Peer) obj;
-            return Objects.equals(publicKey, other.publicKey);
+            return Arrays.equals(publicKey, other.publicKey);
         }
 
         return false;

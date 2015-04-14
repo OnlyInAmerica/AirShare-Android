@@ -103,6 +103,11 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
     // <editor-fold desc="Transport">
 
+    /**
+     * Send data to the given identifiers. If identifier is unavailable data will be queued.
+     * TODO: Callbacks to {@link pro.dbro.airshare.transport.Transport.TransportCallback#dataSentToIdentifier(pro.dbro.airshare.transport.Transport, byte[], String, Exception)}
+     * should occur per data-sized chunk, not for each MTU-sized transmit.
+     */
     @Override
     public boolean sendData(byte[] data, Set<String> identifiers) {
         boolean didSendAll = true;
@@ -161,6 +166,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
     @Override
     public void dataSentToIdentifier(DeviceType deviceType, byte[] data, String identifier, Exception exception) {
         Timber.d("Got receipt for %d sent bytes", data.length);
+
         if (callback.get() != null)
             callback.get().dataSentToIdentifier(this, data, identifier, exception);
     }
@@ -172,9 +178,11 @@ public class BLETransport extends Transport implements BLETransportCallback {
                                   Map<String, Object> extraInfo) {
 
         Timber.d("%s status: %s", identifier, status.toString());
-        // Only the Central device should initiate device discovery
-        if (deviceType == DeviceType.CENTRAL && callback.get() != null)
-            callback.get().identifierUpdated(this, identifier, status, extraInfo);
+        // Only the Central device should report new connection
+        // Peripheral will only report disconnection events
+        if (callback.get() != null && status == ConnectionStatus.DISCONNECTED || deviceType == DeviceType.CENTRAL) {
+                callback.get().identifierUpdated(this, identifier, status, extraInfo);
+        }
 
         if (status == ConnectionStatus.CONNECTED)
             transmitOutgoingDataForConnectedPeer(identifier);
@@ -198,9 +206,11 @@ public class BLETransport extends Transport implements BLETransportCallback {
             if (data.length - readIdx > mtu) {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream(mtu);
                 bos.write(data, readIdx, mtu);
+                Timber.d("Adding %d byte chunk to queue", bos.size());
                 outBuffers.get(identifier).add(bos.toByteArray());
                 readIdx += mtu;
             } else {
+                Timber.d("Adding %d byte chunk to queue", data.length);
                 outBuffers.get(identifier).add(data);
                 break;
             }
@@ -223,7 +233,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
             }
 
             if (didSend) {
-                Timber.d("Sent %d bytes to %s", toSend.length, identifier);
+                Timber.d("Sent %d byte chunk to %s. %d more chunks in queue", toSend.length, identifier, outBuffers.get(identifier).size() - 1);
 
                 outBuffers.get(identifier).poll();
             } else {
@@ -231,7 +241,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
                 didSendAll = false;
                 break;
             }
-
+            break; // For now, only attempt one data chunk at a time. Wait delivery before proceeding
         }
         return didSendAll;
     }
