@@ -229,7 +229,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
     }
 
     @Override
-    public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus) {
+    public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean isHost) {
         switch (newStatus) {
             case CONNECTED:
                 peerAdapter.notifyPeerAdded(peer);

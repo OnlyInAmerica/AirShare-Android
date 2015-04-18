@@ -58,7 +58,8 @@ public class OutgoingTransfer extends Transfer implements IncomingMessageListene
     // <editor-fold desc="Outgoing Constructors">
 
     public OutgoingTransfer(@Nullable Map<String, Object> headers,
-                            @Nullable byte[] data, Peer recipient,
+                            @Nullable byte[] data,
+                            @NonNull Peer recipient,
                             @NonNull SessionMessageScheduler messageSender) {
 
         init(recipient, messageSender);

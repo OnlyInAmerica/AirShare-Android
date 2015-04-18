@@ -32,6 +32,7 @@ public abstract class Transport implements Comparable<Transport> {
         public void identifierUpdated(Transport transport,
                                       String identifier,
                                       ConnectionStatus status,
+                                      boolean isHost,
                                       Map<String, Object> extraInfo);
 
     }

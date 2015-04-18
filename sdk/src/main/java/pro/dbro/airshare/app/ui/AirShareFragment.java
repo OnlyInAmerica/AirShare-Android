@@ -21,10 +21,13 @@ import pro.dbro.airshare.transport.ble.BLEUtil;
 import timber.log.Timber;
 
 /**
- * Convenience activity for interacting with AirShare. Implementation classes
+ * Convenience fragment for interacting with AirShare. Handles connecting to AirShare Service,
+ * prompting user to enable Bluetooth etc.
+ *
+ * Implementation classes
  * must implement {@link AirShareFragment.AirShareCallback}
  */
-public abstract class AirShareFragment extends Fragment implements ServiceConnection {
+public class AirShareFragment extends Fragment implements ServiceConnection {
 
     public static interface AirShareCallback {
 
@@ -57,6 +60,16 @@ public abstract class AirShareFragment extends Fragment implements ServiceConnec
 
     private LocalPeer localPeer;
 
+    public static AirShareFragment newInstance(AirShareCallback callback) {
+        AirShareFragment fragment = new AirShareFragment();
+        fragment.setAirShareCallback(callback);
+        return fragment;
+    }
+
+    public AirShareFragment() {
+        super();
+    }
+
     public void setAirShareCallback(AirShareCallback callback) {
         this.callback = callback;
     }
@@ -64,6 +77,7 @@ public abstract class AirShareFragment extends Fragment implements ServiceConnec
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setRetainInstance(true);
     }
 
     @Override

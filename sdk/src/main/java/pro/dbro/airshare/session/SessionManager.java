@@ -27,7 +27,7 @@ public class SessionManager implements Transport.TransportCallback,
 
     public interface SessionManagerCallback {
 
-        public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus);
+        public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean isHost);
 
         public void messageReceivingFromPeer(SessionMessage message, Peer recipient, float progress);
 
@@ -50,6 +50,7 @@ public class SessionManager implements Transport.TransportCallback,
     private BiMap<String, SessionMessageSerializer>   identifierSenders     = HashBiMap.create();
     private final BiMap<String, Peer>                 identifiedPeers       = HashBiMap.create();
     private Set<String>                               identifyingPeers      = new HashSet<>();
+    private Set<String>                               hostIdentifiers       = new HashSet<>();
 
     private final Object lock = new Object();
 
@@ -244,10 +245,13 @@ public class SessionManager implements Transport.TransportCallback,
     public void identifierUpdated(Transport transport,
                                   String identifier,
                                   Transport.ConnectionStatus status,
+                                  boolean isHost,
                                   Map<String, Object> extraInfo) {
         switch(status) {
             case CONNECTED:
                 Timber.d("Connected to %s", identifier);
+                if (isHost) hostIdentifiers.add(identifier);
+
                 if (shouldIdentifyPeer(identifier)) {
                     if (!identifierSenders.containsKey(identifier)) {
                         Timber.d("Queuing identity to %s", identifier);
@@ -281,10 +285,14 @@ public class SessionManager implements Transport.TransportCallback,
                 break;
 
             case DISCONNECTED:
+                if (isHost) hostIdentifiers.remove(identifier);
+
                 Timber.d("Disconnected from %s", identifier);
 
                 if (identifiedPeers.containsKey(identifier))
-                    callback.peerStatusUpdated(identifiedPeers.get(identifier), Transport.ConnectionStatus.DISCONNECTED);
+                    callback.peerStatusUpdated(identifiedPeers.get(identifier),
+                                               Transport.ConnectionStatus.DISCONNECTED,
+                                               isHost);
                 else
                     Timber.w("Could not report disconnection, peer not identified");
 
@@ -342,7 +350,7 @@ public class SessionManager implements Transport.TransportCallback,
                         // As far as upper layers are concerned, connection events occur when the remote
                         // peer is identified.
                         if (!sentIdentityToSender) sendMessage(localIdentityMessage, peer);
-                        callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED);
+                        callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED, hostIdentifiers.contains(senderIdentifier));
                     }
 
                 } else if (identifiedPeers.containsKey(senderIdentifier)) {

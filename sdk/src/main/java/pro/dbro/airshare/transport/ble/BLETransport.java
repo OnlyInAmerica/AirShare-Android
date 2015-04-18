@@ -180,8 +180,14 @@ public class BLETransport extends Transport implements BLETransportCallback {
         Timber.d("%s status: %s", identifier, status.toString());
         // Only the Central device should report new connection
         // Peripheral will only report disconnection events
-        if (callback.get() != null && status == ConnectionStatus.DISCONNECTED || deviceType == DeviceType.CENTRAL) {
-                callback.get().identifierUpdated(this, identifier, status, extraInfo);
+        if (callback.get() != null &&
+            (status == ConnectionStatus.DISCONNECTED || deviceType == DeviceType.CENTRAL)) {
+
+                callback.get().identifierUpdated(this,
+                                                 identifier,
+                                                 status,
+                                                 deviceType == DeviceType.CENTRAL,  // If the central reported connection, the remote peer is the host
+                                                 extraInfo);
         }
 
         if (status == ConnectionStatus.CONNECTED)

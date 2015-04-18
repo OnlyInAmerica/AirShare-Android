@@ -8,7 +8,6 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
-import android.provider.ContactsContract;
 import android.support.annotation.Nullable;
 
 import com.google.common.collect.BiMap;
@@ -63,7 +62,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
     public static interface AirSharePeerCallback {
 
-        public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus);
+        public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean isHost);
     }
 
     private SessionManager sessionManager;
@@ -186,9 +185,18 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         /**
          * Set by Activity bound to this Service. If isActive is false, this Service
          * should post incoming messages as Notifications.
+         *
+         * Note: It seems more appropriate for this to simply be a convenience value for
+         * a client application. e.g: The value is set by AirShareFragment and the client
+         * application can query the state via {@link #isActivityReceivingMessages()}
+         * to avoid manually keeping track of such state themselves.
          */
         public void setActivityReceivingMessages(boolean receivingMessages) {
             activityRecevingMessages = receivingMessages;
+        }
+
+        public boolean isActivityReceivingMessages() {
+            return activityRecevingMessages;
         }
     }
 
@@ -281,13 +289,13 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     // <editor-fold desc="SessionManagerCallback">
 
     @Override
-    public void peerStatusUpdated(final Peer peer, final Transport.ConnectionStatus newStatus) {
+    public void peerStatusUpdated(final Peer peer, final Transport.ConnectionStatus newStatus, final boolean isHost) {
 
         foregroundHandler.post(new Runnable() {
             @Override
             public void run() {
                 if (pCallback != null)
-                    pCallback.peerStatusUpdated(peer, newStatus);
+                    pCallback.peerStatusUpdated(peer, newStatus, isHost);
                 else
                     Timber.w("Could not report peer status update, no callback registered");
             }

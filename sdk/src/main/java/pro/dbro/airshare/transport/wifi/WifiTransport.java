@@ -313,7 +313,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                     Timber.d("Client opening socket to %s", address.getHostAddress());
                     socket.connect((new InetSocketAddress(address, PORT)), SOCKET_TIMEOUT_MS);
                     Timber.d("Client connected to %s", address.getHostAddress());
-                    callback.get().identifierUpdated(WifiTransport.this, address.getHostAddress(), ConnectionStatus.CONNECTED, null);
+                    callback.get().identifierUpdated(WifiTransport.this, address.getHostAddress(), ConnectionStatus.CONNECTED, false, null);
 
                     maintainSocket(socket, address.getHostAddress());
 
