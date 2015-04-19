@@ -7,9 +7,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -269,37 +267,23 @@ public class SessionMessageDeserializer {
 
             Timber.d("Got body!");
             // Construct appropriate SessionMessage or child object
-            try {
+            if (bodyLength > BODY_SIZE_CUTOFF_BYTES) {
 
-                if (bodyLength > BODY_SIZE_CUTOFF_BYTES) {
-
-                    if (sessionMessage.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
-                        ((FileTransferMessage) sessionMessage).setBody(new FileInputStream(bodyFile));
-
-                    } else if (sessionMessage instanceof DataTransferMessage) {
-                        // TODO This shouldn't happen. We should enforce an upper limit on DataTransferMessage
-                        throw new UnsupportedOperationException("Cannot have a disk-backed DataTransferMessage");
-                    }
-                } else {
-                    byte[] body = new byte[bodyLength];
-                    buffer.position(getPrefixAndHeaderLengthBytes());
-                    buffer.get(body, 0, bodyLength);
-
-                    if (sessionMessage.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
-                        ((FileTransferMessage) sessionMessage).setBody(new ByteArrayInputStream(body));
-
-                    } else if (sessionMessage instanceof DataTransferMessage) {
-                        ((DataTransferMessage) sessionMessage).setBody(body);
-                    }
+                if (sessionMessage instanceof DataTransferMessage) {
+                    // TODO This shouldn't happen. We should enforce an upper limit on DataTransferMessage
+                    throw new UnsupportedOperationException("Cannot have a disk-backed DataTransferMessage");
                 }
+            } else {
+                byte[] body = new byte[bodyLength];
+                buffer.position(getPrefixAndHeaderLengthBytes());
+                buffer.get(body, 0, bodyLength);
 
-                if (callback != null) callback.onComplete(this, sessionMessage, null);
-
-            } catch (IOException e) {
-                Timber.e(e, "Failed to open body file");
-                if (callback != null) callback.onComplete(this, null, e);
-                e.printStackTrace();
+                if (sessionMessage instanceof DataTransferMessage) {
+                    ((DataTransferMessage) sessionMessage).setBody(body);
+                }
             }
+
+            if (callback != null) callback.onComplete(this, sessionMessage, null);
 
             gotBody = true;
 
@@ -355,11 +339,6 @@ public class SessionMessageDeserializer {
         switch(headerType) {
             case IdentityMessage.HEADER_TYPE:
                 return IdentityMessage.fromHeaders(headers);
-
-            case FileTransferMessage.HEADER_TYPE_ACCEPT:
-            case FileTransferMessage.HEADER_TYPE_OFFER:
-            case FileTransferMessage.HEADER_TYPE_TRANSFER:
-                return new FileTransferMessage(headers, null);
 
             case DataTransferMessage.HEADER_TYPE:
                 return new DataTransferMessage(headers, null);

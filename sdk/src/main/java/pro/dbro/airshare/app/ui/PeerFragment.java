@@ -13,14 +13,12 @@ import android.view.ViewGroup;
 
 import org.json.JSONObject;
 
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
 import pro.dbro.airshare.R;
 import pro.dbro.airshare.app.AirShareService;
-import pro.dbro.airshare.app.IncomingTransfer;
-import pro.dbro.airshare.app.OutgoingTransfer;
 import pro.dbro.airshare.app.adapter.PeerAdapter;
 import pro.dbro.airshare.session.Peer;
 import pro.dbro.airshare.transport.Transport;
@@ -51,10 +49,8 @@ import pro.dbro.airshare.transport.Transport;
  * An Activity that hosts PeerFragment must implement
  * {@link pro.dbro.airshare.app.ui.PeerFragment.PeerFragmentListener}
  */
-public class PeerFragment extends AirShareFragment implements AirShareService.AirSharePeerCallback,
-                                                              AirShareFragment.AirShareCallback,
-                                                              AirShareService.AirShareSenderCallback,
-                                                              AirShareService.AirShareReceiverCallback {
+public class PeerFragment extends AirShareFragment implements AirShareService.Callback,
+                                                              AirShareFragment.AirShareCallback {
 
     /** Bundle parameters */
     private static final String BUNDLE_USERNAME    = "user";
@@ -70,21 +66,19 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
          * A transfer was received from a peer.
          * Called when mode is {@link Mode#RECEIVE} or {@link Mode#BOTH}
          */
-        public void onDataReceived(@Nullable HashMap<String, Object> headers,
-                                   @Nullable byte[] payload,
+        public void onDataReceived(@Nullable byte[] payload,
                                    @NonNull Peer sender);
 
         /**
          * A transfer was sent to a peer.
          * Called when mode is {@link Mode#SEND} or {@link Mode#BOTH}
          */
-        public void onDataSent(@Nullable HashMap<String, Object> headers,
-                               @Nullable byte[] data,
+        public void onDataSent(@Nullable byte[] data,
                                @NonNull Peer recipient);
 
         /**
          * The user selected recipient to receive data. Provide that data in a call
-         * to {@link #sendDataToPeer(java.util.Map, byte[], pro.dbro.airshare.session.Peer)}
+         * to {@link #sendDataToPeer(byte[], pro.dbro.airshare.session.Peer)}
          * Called when mode is {@link Mode#BOTH}
          */
         public void onDataRequestedForPeer(@NonNull Peer recipient);
@@ -109,7 +103,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
     private String username;
     private String serviceName;
 
-    private Map payload;
+    private byte[] payload;
 
     public static PeerFragment toSend(@NonNull HashMap<String, Object> toSend,
                                       @NonNull String username,
@@ -157,7 +151,11 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
             mode = (Mode) getArguments().getSerializable(BUNDLE_MODE);
             username = getArguments().getString(BUNDLE_USERNAME);
             serviceName = getArguments().getString(BUNDLE_SERVICENAME);
-            payload = (HashMap) getArguments().getSerializable(BUNDLE_PAYLOAD);
+            try {
+                payload = new JSONObject((HashMap) getArguments().getSerializable(BUNDLE_PAYLOAD)).toString().getBytes("UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                throw new IllegalStateException("Provided Map is not JSON compatible!");
+            }
         }
     }
 
@@ -205,8 +203,8 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
      * Should be called by a client in response to the PeerFragmentCallback method:
      * {@link pro.dbro.airshare.app.ui.PeerFragment.PeerFragmentListener#onDataRequestedForPeer(pro.dbro.airshare.session.Peer)}
      */
-    public void sendDataToPeer(Map<String, Object> headers, byte[] data, Peer recipient) {
-        serviceBinder.offer(headers, data, recipient);
+    public void sendDataToPeer(byte[] data, Peer recipient) {
+        serviceBinder.send(data, recipient);
     }
 
     /** An available peer was selected from {@link pro.dbro.airshare.app.adapter.PeerAdapter} */
@@ -214,7 +212,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
         switch (mode) {
             case SEND:
 
-                serviceBinder.offer(payload, null, peer);
+                serviceBinder.send(payload, peer);
                 break;
 
             case BOTH:
@@ -229,7 +227,26 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
     }
 
     @Override
-    public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean isHost) {
+    public void onDataRecevied(byte[] data, Peer sender, Exception exception) {
+        if (callback == null) return; // Fragment was detached but not destroyed
+
+        callback.onDataReceived(data, sender);
+
+        if (mode == Mode.RECEIVE)
+            callback.onFinished(null);
+    }
+
+    @Override
+    public void onDataSent(byte[] data, Peer recipient, Exception exception) {
+        if (callback == null) return; // Fragment was detached but not destroyed
+        callback.onDataSent(data, recipient);
+
+        if (mode == Mode.SEND)
+            callback.onFinished(null);
+    }
+
+    @Override
+    public void onPeerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean peerIsHost) {
         switch (newStatus) {
             case CONNECTED:
                 peerAdapter.notifyPeerAdded(peer);
@@ -254,10 +271,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
     @Override
     public void onServiceReady(AirShareService.ServiceBinder serviceBinder) {
         this.serviceBinder = serviceBinder;
-        this.serviceBinder.setPeerCallback(this);
-
-        this.serviceBinder.setReceiverCallback(this);
-        this.serviceBinder.setSenderCallback(this);
+        this.serviceBinder.setCallback(this);
 
         switch (mode) {
             case SEND:
@@ -280,51 +294,4 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ai
         callback.onFinished(e);
     }
 
-    // <editor-fold desc="AirShareSenderCallback">
-
-    @Override
-    public void onTransferOfferResponse(OutgoingTransfer transfer, Peer recipient, boolean recipientDidAccept) {
-
-    }
-
-    @Override
-    public void onTransferProgress(OutgoingTransfer transfer, Peer recipient, float progress) {
-
-    }
-
-    @Override
-    public void onTransferComplete(OutgoingTransfer transfer, Peer recipient, Exception exception) {
-        if (callback == null) return; // Fragment was detached but not destroyed
-        callback.onDataSent(new HashMap<>(transfer.getHeaderExtras()), transfer.getBodyBytes(), recipient);
-
-        if (mode == Mode.SEND)
-            callback.onFinished(null);
-    }
-
-    // </editor-fold desc="AirShareSenderCallback">
-
-
-    // <editor-fold desc="AirShareReceiverCallback">
-
-    @Override
-    public void onTransferOffered(IncomingTransfer transfer, Peer sender) {
-
-    }
-
-    @Override
-    public void onTransferProgress(IncomingTransfer transfer, Peer sender, float progress) {
-
-    }
-
-    @Override
-    public void onTransferComplete(IncomingTransfer transfer, Peer sender, Exception exception) {
-        if (callback == null) return; // Fragment was detached but not destroyed
-
-        callback.onDataReceived(new HashMap<>(transfer.getHeaderExtras()), transfer.getBodyBytes(), sender);
-
-        if (mode == Mode.RECEIVE)
-            callback.onFinished(null);
-    }
-
-    // </editor-fold desc="AirShareReceiverCallback">
 }

@@ -55,6 +55,7 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
     private boolean didIssueServiceUnbind = false;
     private boolean serviceBound = false;  // Are we bound to the ChatService?
     private boolean bluetoothReceiverRegistered = false; // Are we registered for Bluetooth status broadcasts?
+    private boolean operateInBackground = false;
 
     private AlertDialog mBluetoothEnableDialog;
 
@@ -123,7 +124,11 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
      * if false, the service will be re-started on {@link #onStart()}
      */
     public boolean shouldServiceContinueInBackground() {
-        return false;
+        return operateInBackground;
+    }
+
+    public void setShouldServiceContinueInBackground(boolean shouldContinueInBackground) {
+        operateInBackground = shouldContinueInBackground;
     }
 
     public void stopService() {

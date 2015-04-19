@@ -13,20 +13,15 @@ import android.support.annotation.Nullable;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import pro.dbro.airshare.crypto.KeyPair;
 import pro.dbro.airshare.crypto.SodiumShaker;
 import pro.dbro.airshare.session.DataTransferMessage;
-import pro.dbro.airshare.session.FileTransferMessage;
 import pro.dbro.airshare.session.LocalPeer;
 import pro.dbro.airshare.session.Peer;
 import pro.dbro.airshare.session.SessionManager;
@@ -40,35 +35,18 @@ import timber.log.Timber;
 public class AirShareService extends Service implements ActivityRecevingMessagesIndicator,
                                                         SessionManager.SessionManagerCallback {
 
-    public static interface AirShareSenderCallback {
+    public static interface Callback {
 
-        public void onTransferOfferResponse(OutgoingTransfer transfer, Peer recipient, boolean recipientDidAccept);
+        public void onDataRecevied(byte[] data, Peer sender, Exception exception);
 
-        public void onTransferProgress(OutgoingTransfer transfer, Peer recipient, float progress);
+        public void onDataSent(byte[] data, Peer recipient, Exception exception);
 
-        public void onTransferComplete(OutgoingTransfer transfer, Peer recipient, Exception exception);
+        public void onPeerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean peerIsHost);
 
-    }
-
-    public static interface AirShareReceiverCallback {
-
-        public void onTransferOffered(IncomingTransfer transfer, Peer sender);
-
-        public void onTransferProgress(IncomingTransfer transfer, Peer sender, float progress);
-
-        public void onTransferComplete(IncomingTransfer transfer, Peer sender, Exception exception);
-
-    }
-
-    public static interface AirSharePeerCallback {
-
-        public void peerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean isHost);
     }
 
     private SessionManager sessionManager;
-    private AirShareReceiverCallback rCallback;
-    private AirShareSenderCallback sCallback;
-    private AirSharePeerCallback pCallback;
+    private Callback callback;
     private boolean activityRecevingMessages;
     private BiMap<Peer, ArrayDeque<OutgoingTransfer>> outPeerTransfers = HashBiMap.create();
     private BiMap<Peer, ArrayDeque<IncomingTransfer>> inPeerTransfers = HashBiMap.create();
@@ -158,28 +136,12 @@ public class AirShareService extends Service implements ActivityRecevingMessages
             sessionManager.stop();
         }
 
-        public void setSenderCallback(AirShareSenderCallback callback) {
-            sCallback = callback;
+        public void setCallback(Callback callback) {
+            AirShareService.this.callback = callback;
         }
 
-        public void setReceiverCallback(AirShareReceiverCallback callback) {
-            rCallback = callback;
-        }
-
-        public void setPeerCallback(AirSharePeerCallback callback) {
-            pCallback = callback;
-        }
-
-        public void offer(File file, Peer recipient) throws FileNotFoundException {
-            addOutgoingTransfer(new OutgoingTransfer(file, recipient, sessionManager));
-        }
-
-        public void offer(InputStream inputStream, int length, String name, Peer recipient) throws FileNotFoundException {
-            addOutgoingTransfer(new OutgoingTransfer(inputStream, name, length, recipient, sessionManager));
-        }
-
-        public void offer(Map<String, Object> extraHeaders, byte[] data, Peer recipient) {
-            addOutgoingTransfer(new OutgoingTransfer(extraHeaders, data, recipient, sessionManager));
+        public void send(byte[] data, Peer recipient) {
+            addOutgoingTransfer(new OutgoingTransfer(data, recipient, sessionManager));
         }
 
         /**
@@ -257,13 +219,11 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         IncomingTransfer incomingTransfer = null;
         for (IncomingTransfer transfer : inPeerTransfers.get(sender)) {
-            if (transferMessage instanceof FileTransferMessage) {
-                if (transfer.getFilename().equals(transferMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)))
-                    incomingTransfer = transfer;
-            } else if (transferMessage instanceof DataTransferMessage) {
+            if (transferMessage instanceof DataTransferMessage) {
                 if (Objects.equals(transfer.getTransferId(), transferMessage.getHeaders().get(SessionMessage.HEADER_ID)))
                     incomingTransfer = transfer;
-            }
+            } else
+                throw new IllegalStateException("Only DataTransferMessage is supported!");
         }
 
         return incomingTransfer;
@@ -274,13 +234,11 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         OutgoingTransfer outgoingTransfer = null;
         for (OutgoingTransfer transfer : outPeerTransfers.get(recipient)) {
-            if (transferMessage instanceof FileTransferMessage) {
-                if (transfer.getFilename().equals(transferMessage.getHeaders().get(FileTransferMessage.HEADER_FILENAME)))
-                    outgoingTransfer = transfer;
-            } else if (transferMessage instanceof DataTransferMessage) {
+            if (transferMessage instanceof DataTransferMessage) {
                 if (Objects.equals(transfer.getTransferId(), transferMessage.getHeaders().get(SessionMessage.HEADER_ID)))
                     outgoingTransfer = transfer;
-            }
+            } else
+                throw new IllegalStateException("Only DataTransferMessage is supported!");
         }
 
         return outgoingTransfer;
@@ -294,8 +252,8 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         foregroundHandler.post(new Runnable() {
             @Override
             public void run() {
-                if (pCallback != null)
-                    pCallback.peerStatusUpdated(peer, newStatus, isHost);
+                if (callback != null)
+                    callback.onPeerStatusUpdated(peer, newStatus, isHost);
                 else
                     Timber.w("Could not report peer status update, no callback registered");
             }
@@ -305,24 +263,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
     @Override
     public void messageReceivingFromPeer(SessionMessage message, final Peer recipient, final float progress) {
-        if (message.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
-
-            FileTransferMessage fileMessage = (FileTransferMessage) message;
-            final IncomingTransfer incomingTransfer = getIncomingTransferForFileTransferMessage(fileMessage, recipient);
-
-            if (incomingTransfer == null) {
-                Timber.w("No OutgoingTransfer for outgoing FileTransferMessage");
-            }
-
-            foregroundHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    if (rCallback != null)
-                        rCallback.onTransferProgress(incomingTransfer, recipient, progress);
-                }
-            });
-
-        }
+        // currently unused
     }
 
     @Override
@@ -339,85 +280,24 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         }
 
-            final IncomingTransfer incomingTransfer;
-            switch(message.getType()) {
+        final IncomingTransfer incomingTransfer;
+        if(message.getType().equals(DataTransferMessage.HEADER_TYPE)) {
 
-                case DataTransferMessage.HEADER_TYPE:
-
-                    incomingTransfer = new IncomingTransfer((DataTransferMessage) message, sender);
-                    // No action is required for DataTransferMessage. Report complete
-                    foregroundHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (rCallback != null) rCallback.onTransferComplete(incomingTransfer, sender, null);
-                        }
-                    });
-                    break;
-
-                case FileTransferMessage.HEADER_TYPE_OFFER:
-                    // An incoming transfer offer
-                    incomingTransfer = new IncomingTransfer((FileTransferMessage) message, sender, sessionManager);
-
-                    addIncomingTransfer(incomingTransfer);
-
-                    foregroundHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (rCallback != null) rCallback.onTransferOffered(incomingTransfer, sender);
-                        }
-                    });
-                    break;
-
-                case FileTransferMessage.HEADER_TYPE_ACCEPT:
-                    // An Acceptance was received that wasn't intercepted by a corresponding offer
-                    OutgoingTransfer outgoingTransfer = getOutgoingTransferForFileTransferMessage(message, sender);
-
-                    if (outgoingTransfer == null) {
-                        Timber.w("Received accept filetransfermessage but no corresponding OutgoingTransfer registered");
-                        break;
-                    }
-
-                    // TODO : When we implement decline messages, check for accept / decline header
-                    if (sCallback != null) sCallback.onTransferOfferResponse(outgoingTransfer, sender, true);
-
-                    break;
-
-                case FileTransferMessage.HEADER_TYPE_TRANSFER:
-                    // An incoming transfer
-
-                    incomingTransfer = getIncomingTransferForFileTransferMessage(message, sender);
-
-                    if (incomingTransfer == null) {
-                        Timber.w("Received transfer filetransfermessage but no corresponding incomingtransfer registered");
-                        break;
-                    }
-
-                    foregroundHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (rCallback != null) rCallback.onTransferComplete(incomingTransfer, sender, null);
-                        }
-                    });
-
-                    break;
-            }
+            incomingTransfer = new IncomingTransfer((DataTransferMessage) message, sender);
+            // No action is required for DataTransferMessage. Report complete
+            foregroundHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (callback != null)
+                        callback.onDataRecevied(incomingTransfer.getBodyBytes(), sender, null);
+                }
+            });
+        }
     }
 
     @Override
     public void messageSendingToPeer(SessionMessage message, Peer recipient, float progress) {
-
-        if (message.getType().equals(FileTransferMessage.HEADER_TYPE_TRANSFER)) {
-
-            FileTransferMessage fileMessage = (FileTransferMessage) message;
-            OutgoingTransfer outgoingTransfer = getOutgoingTransferForFileTransferMessage(fileMessage, recipient);
-
-            if (outgoingTransfer == null) {
-                Timber.w("No OutgoingTransfer for outgoing FileTransferMessage");
-            }
-
-            if (sCallback != null)
-                sCallback.onTransferProgress(outgoingTransfer, recipient, progress);
-        }
+        // currently unused
     }
 
     @Override
@@ -434,29 +314,15 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         }
 
         final OutgoingTransfer outgoingTransfer;
-        switch (message.getType()) {
-            case DataTransferMessage.HEADER_TYPE:
-
-                outgoingTransfer = getOutgoingTransferForFileTransferMessage(message, recipient);
-                // No action is required for DataTransferMessage. Report complete
-                foregroundHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (sCallback != null) sCallback.onTransferComplete(outgoingTransfer, recipient, null);
-                    }
-                });
-                break;
-            case FileTransferMessage.HEADER_TYPE_TRANSFER:
-
-                outgoingTransfer = getOutgoingTransferForFileTransferMessage(message, recipient);
-
-                if (outgoingTransfer == null) {
-                    Timber.w("Sent transfer FileTransferMessage but no OutgoingTransfer registered");
-                    return;
+        if (message.getType().equals(DataTransferMessage.HEADER_TYPE)) {
+            outgoingTransfer = getOutgoingTransferForFileTransferMessage(message, recipient);
+            // No action is required for DataTransferMessage. Report complete
+            foregroundHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (callback != null) callback.onDataSent(outgoingTransfer.getBodyBytes(), recipient, null);
                 }
-
-                if (sCallback != null) sCallback.onTransferComplete(outgoingTransfer, recipient, null);
-                break;
+            });
         }
     }
 
