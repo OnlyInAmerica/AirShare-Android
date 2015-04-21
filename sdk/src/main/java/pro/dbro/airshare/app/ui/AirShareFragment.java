@@ -25,11 +25,11 @@ import timber.log.Timber;
  * prompting user to enable Bluetooth etc.
  *
  * Implementation classes
- * must implement {@link AirShareFragment.AirShareCallback}
+ * must implement {@link pro.dbro.airshare.app.ui.AirShareFragment.Callback}
  */
 public class AirShareFragment extends Fragment implements ServiceConnection {
 
-    public static interface AirShareCallback {
+    public static interface Callback {
 
         /**
          * Indicates AirShare needs to be initialized with a Username
@@ -50,7 +50,7 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
 
     }
 
-    private AirShareCallback callback;
+    private Callback callback;
     private AirShareService.ServiceBinder serviceBinder;
     private boolean didIssueServiceUnbind = false;
     private boolean serviceBound = false;  // Are we bound to the ChatService?
@@ -61,7 +61,7 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
 
     private LocalPeer localPeer;
 
-    public static AirShareFragment newInstance(AirShareCallback callback) {
+    public static AirShareFragment newInstance(Callback callback) {
         AirShareFragment fragment = new AirShareFragment();
         fragment.setAirShareCallback(callback);
         return fragment;
@@ -71,7 +71,7 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
         super();
     }
 
-    public void setAirShareCallback(AirShareCallback callback) {
+    public void setAirShareCallback(Callback callback) {
         this.callback = callback;
     }
 

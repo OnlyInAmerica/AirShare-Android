@@ -50,7 +50,7 @@ import pro.dbro.airshare.transport.Transport;
  * {@link pro.dbro.airshare.app.ui.PeerFragment.PeerFragmentListener}
  */
 public class PeerFragment extends AirShareFragment implements AirShareService.Callback,
-                                                              AirShareFragment.AirShareCallback {
+                                                              AirShareFragment.Callback {
 
     /** Bundle parameters */
     private static final String BUNDLE_USERNAME    = "user";
