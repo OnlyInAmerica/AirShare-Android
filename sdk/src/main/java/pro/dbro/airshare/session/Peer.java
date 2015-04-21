@@ -68,6 +68,6 @@ public class Peer {
 
     @Override
     public int hashCode() {
-        return Objects.hash(publicKey);
+        return Arrays.hashCode(publicKey);
     }
 }
