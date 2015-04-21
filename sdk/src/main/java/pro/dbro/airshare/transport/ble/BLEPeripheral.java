@@ -1,5 +1,6 @@
 package pro.dbro.airshare.transport.ble;
 
+import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -15,6 +16,7 @@ import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
+import android.os.Build;
 import android.os.ParcelUuid;
 import android.support.annotation.NonNull;
 
@@ -36,6 +38,7 @@ import timber.log.Timber;
  *
  * Created by davidbrodsky on 10/11/14.
  */
+@TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class BLEPeripheral {
 
     private Set<BluetoothGattCharacteristic> characterisitics = new HashSet<>();

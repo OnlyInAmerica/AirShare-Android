@@ -3,6 +3,7 @@ package pro.dbro.airshare.transport.ble;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.content.Context;
+import android.os.Build;
 import android.support.annotation.NonNull;
 
 import org.apache.commons.codec.binary.Hex;
@@ -82,9 +83,11 @@ public class BLETransport extends Transport implements BLETransportCallback {
         central.setTransportCallback(this);
         central.requestNotifyOnCharacteristic(dataCharacteristic);
 
-        peripheral = new BLEPeripheral(context, serviceUUID);
-        peripheral.setTransportCallback(this);
-        peripheral.addCharacteristic(dataCharacteristic);
+        if (isLollipop()) {
+            peripheral = new BLEPeripheral(context, serviceUUID);
+            peripheral.setTransportCallback(this);
+            peripheral.addCharacteristic(dataCharacteristic);
+        }
     }
 
     private UUID generateUUIDFromString(String input) {
@@ -133,7 +136,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
     @Override
     public void advertise() {
-        if (!peripheral.isAdvertising()) peripheral.start();
+        if (isLollipop() && !peripheral.isAdvertising()) peripheral.start();
     }
 
     @Override
@@ -143,7 +146,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
     @Override
     public void stop() {
-        if (peripheral.isAdvertising()) peripheral.stop();
+        if (isLollipop() && peripheral.isAdvertising()) peripheral.stop();
         if (central.isScanning())       central.stop();
     }
 
@@ -234,7 +237,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
             if (central.isConnectedTo(identifier)) {
                 didSend = central.write(toSend, dataCharacteristic.getUuid(), identifier);
             }
-            else if (peripheral.isConnectedTo(identifier)) {
+            else if (isLollipop() && peripheral.isConnectedTo(identifier)) {
                 didSend = peripheral.indicate(toSend, dataCharacteristic.getUuid(), identifier);
             }
 
@@ -253,6 +256,10 @@ public class BLETransport extends Transport implements BLETransportCallback {
     }
 
     private boolean isConnectedTo(String identifier) {
-        return central.isConnectedTo(identifier) || peripheral.isConnectedTo(identifier);
+        return central.isConnectedTo(identifier) || (isLollipop() && peripheral.isConnectedTo(identifier));
+    }
+
+    private static boolean isLollipop() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP;
     }
 }
