@@ -4,6 +4,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import org.json.JSONObject;
+import com.google.common.base.Objects;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -11,7 +12,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 import timber.log.Timber;
@@ -250,9 +250,10 @@ public abstract class SessionMessage {
 
     @Override
     public int hashCode() {
-        return Objects.hash(headers.get(HEADER_TYPE),
-                            headers.get(HEADER_BODY_LENGTH),
-                            headers.get(HEADER_ID));
+        // If we only target API 19+, we can move to java.util.Objects.hash
+        return Objects.hashCode(headers.get(HEADER_TYPE),
+                                headers.get(HEADER_BODY_LENGTH),
+                                headers.get(HEADER_ID));
     }
 
     @Override
@@ -264,13 +265,13 @@ public abstract class SessionMessage {
         if (getClass().equals(obj.getClass()))
         {
             final SessionMessage other = (SessionMessage) obj;
-
-            return Objects.equals(getHeaders().get(HEADER_TYPE),
-                                  other.getHeaders().get(HEADER_TYPE)) &&
-                   Objects.equals(getHeaders().get(HEADER_BODY_LENGTH),
-                                  other.getHeaders().get(HEADER_BODY_LENGTH)) &&
-                   Objects.equals(getHeaders().get(HEADER_ID),
-                                  other.getHeaders().get(HEADER_ID));
+            // If we only target API 19+, we can move to the java.util.Objects.equals
+            return Objects.equal(getHeaders().get(HEADER_TYPE),
+                                 other.getHeaders().get(HEADER_TYPE)) &&
+                   Objects.equal(getHeaders().get(HEADER_BODY_LENGTH),
+                                 other.getHeaders().get(HEADER_BODY_LENGTH)) &&
+                   Objects.equal(getHeaders().get(HEADER_ID),
+                                 other.getHeaders().get(HEADER_ID));
         }
 
         return false;

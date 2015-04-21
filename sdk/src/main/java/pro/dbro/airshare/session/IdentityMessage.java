@@ -2,10 +2,11 @@ package pro.dbro.airshare.session;
 
 import android.util.Base64;
 
+import com.google.common.base.Objects;
+
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Created by davidbrodsky on 2/22/15.
@@ -70,11 +71,12 @@ public class IdentityMessage extends SessionMessage {
 
     @Override
     public int hashCode() {
-        return Objects.hash(headers.get(HEADER_TYPE),
-                            headers.get(HEADER_BODY_LENGTH),
-                            headers.get(HEADER_ID),
-                            headers.get(HEADER_ALIAS),
-                            headers.get(HEADER_PUBKEY));
+        // If we only target API 19+, we can move to java.util.Objects.hash
+        return Objects.hashCode(headers.get(HEADER_TYPE),
+                                headers.get(HEADER_BODY_LENGTH),
+                                headers.get(HEADER_ID),
+                                headers.get(HEADER_ALIAS),
+                                headers.get(HEADER_PUBKEY));
     }
 
     @Override
@@ -87,11 +89,12 @@ public class IdentityMessage extends SessionMessage {
         {
             final IdentityMessage other = (IdentityMessage) obj;
 
+            // If we only target API 19+, we can move to the java.util.Objects.equals
             return super.equals(obj) &&
-                Objects.equals(getHeaders().get(HEADER_PUBKEY),
-                        other.getHeaders().get(HEADER_PUBKEY)) &&
-                Objects.equals(getHeaders().get(HEADER_ALIAS),
-                        other.getHeaders().get(HEADER_ALIAS));
+                    Objects.equal(getHeaders().get(HEADER_PUBKEY),
+                            other.getHeaders().get(HEADER_PUBKEY)) &&
+                    Objects.equal(getHeaders().get(HEADER_ALIAS),
+                            other.getHeaders().get(HEADER_ALIAS));
         }
 
         return false;
