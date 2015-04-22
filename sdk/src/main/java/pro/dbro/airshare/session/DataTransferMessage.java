@@ -75,9 +75,10 @@ public class DataTransferMessage extends SessionMessage {
         if (extraHeaders != null)
             headerMap.put(HEADER_EXTRA, extraHeaders);
 
-        headerMap.put(HEADER_TYPE,        type);
-        headerMap.put(HEADER_BODY_LENGTH, bodyLengthBytes);
-        headerMap.put(HEADER_ID,          id);
+        // The following three lines should be deleted
+//        headerMap.put(HEADER_TYPE,        type);
+//        headerMap.put(HEADER_BODY_LENGTH, bodyLengthBytes);
+//        headerMap.put(HEADER_ID,          id);
 
         return headerMap;
     }

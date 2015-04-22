@@ -9,6 +9,7 @@ import com.google.common.collect.HashBiMap;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -16,6 +17,7 @@ import java.util.TreeSet;
 
 import pro.dbro.airshare.transport.Transport;
 import pro.dbro.airshare.transport.ble.BLETransport;
+import pro.dbro.airshare.transport.wifi.WifiTransport;
 import timber.log.Timber;
 
 /**
@@ -37,20 +39,23 @@ public class SessionManager implements Transport.TransportCallback,
 
         public void messageSentToPeer(SessionMessage message, Peer recipient, Exception exception);
 
+        public void transportUpgraded(Peer peer, boolean success);
     }
 
     private Context                                   context;
     private String                                    serviceName;
-    private Set<Transport>                            transports;
+    private SortedSet<Transport>                      transports;
     private LocalPeer                                 localPeer;
     private IdentityMessage                           localIdentityMessage;
     private SessionManagerCallback                    callback;
-    private HashMap<String, SortedSet<Transport>>     identifierTransports  = new HashMap<>();
-    private BiMap<String, SessionMessageDeserializer> identifierReceivers   = HashBiMap.create();
-    private BiMap<String, SessionMessageSerializer>   identifierSenders     = HashBiMap.create();
-    private final BiMap<String, Peer>                 identifiedPeers       = HashBiMap.create();
-    private Set<String>                               identifyingPeers      = new HashSet<>();
-    private Set<String>                               hostIdentifiers       = new HashSet<>();
+    private HashMap<String, Transport>                identifierTransports       = new HashMap<>();
+    private HashMap<Peer, SortedSet<Transport>>       peerTransports             = new HashMap<>();
+    private BiMap<String, SessionMessageDeserializer> identifierReceivers        = HashBiMap.create();
+    private BiMap<String, SessionMessageSerializer>   identifierSenders          = HashBiMap.create();
+    private final BiMap<String, Peer>                 identifiedPeers            = HashBiMap.create();
+    private Set<String>                               identifyingPeers           = new HashSet<>();
+    private Set<String>                               hostIdentifiers            = new HashSet<>();
+    private HashMap<Peer, Transport>                  peerUpgradeRequests        = new HashMap<>();
 
     private final Object lock = new Object();
 
@@ -66,7 +71,7 @@ public class SessionManager implements Transport.TransportCallback,
         this.localPeer   = localPeer;
         this.callback    = callback;
 
-        localIdentityMessage = new IdentityMessage(this.localPeer);
+        localIdentityMessage = new IdentityMessage(this.context, this.localPeer);
 
         initializeTransports(serviceName);
     }
@@ -76,13 +81,13 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     public void advertiseLocalPeer() {
-        for (Transport transport : transports)
-            transport.advertise();
+        // Only advertise on the "base" (first) transport
+        transports.first().advertise();
     }
 
     public void scanForPeers() {
-        for (Transport transport : transports)
-            transport.scanForPeers();
+        // Only scan on the "base" (first) transport
+        transports.first().scanForPeers();
     }
 
     /**
@@ -121,31 +126,101 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     public void stop() {
+        // Stop all running transports
         for (Transport transport : transports)
             transport.stop();
+
+        reset();
+    }
+
+    public void requestTransportUpgrade(Peer remotePeer) {
+
+        Transport supplementalTransport = null;
+        Iterator<Transport> transports = this.transports.iterator();
+        Transport baseTransport = transports.next(); // Skip the first "base" transport
+
+        while (transports.hasNext()) {
+            supplementalTransport = transports.next();
+
+            if (!remotePeer.supportsTransport(supplementalTransport.getTransportCode())) {
+                supplementalTransport = null;
+            }
+        }
+
+        if (supplementalTransport != null) {
+            // We found an available upgrade transport
+            Timber.d("Sending transport upgrade message for transport %d to peer %s",
+                     supplementalTransport.getTransportCode(),
+                     remotePeer.getAlias());
+
+
+            peerUpgradeRequests.put(remotePeer, supplementalTransport);
+            sendMessage(new TransportUpgradeMessage(supplementalTransport.getTransportCode()), remotePeer);
+        }
     }
 
     // </editor-fold desc="Public API">
 
     // <editor-fold desc="Private API">
 
-    private void initializeTransports(String serviceName) {
-        transports = new HashSet<>();
-        transports.add(new BLETransport(context, serviceName, this));
-//        transports.add(new WifiTransport(context, serviceName, this));
+    private void reset() {
+
+        identifierTransports.clear();
+        peerTransports.clear();
+        identifierReceivers.clear();
+        identifierSenders.clear();
+        identifiedPeers.clear();
+        identifyingPeers.clear();
+        hostIdentifiers.clear();
+        peerUpgradeRequests.clear();
     }
+
+    private void initializeTransports(String serviceName) {
+        // First transport is considered "base" transport
+        // Additional transports are considered supplementary and
+        // will only be activated upon request
+        transports = new TreeSet<>();
+        transports.add(new BLETransport(context, serviceName, this));
+        transports.add(new WifiTransport(context, serviceName, this));
+    }
+
+    private void upgradeTransport(Peer requester, int transportCode) {
+        Transport baseTransport = transports.first();
+
+        Transport requestedTransport = null;
+        for (Transport transport : transports) {
+            if (transport.getTransportCode() == transportCode) {
+                requestedTransport = transport;
+            }
+        }
+
+        if (requestedTransport == null) {
+            Timber.d("Cannot find requested transport %d. Ignoring request", transportCode);
+            callback.transportUpgraded(requester, false);
+            return;
+        }
+
+        // Preserve host / client relationship in new transport
+        if (hostIdentifiers.contains(identifiedPeers.inverse().get(requester))) {
+            Timber.d("Transport upgrade requested by host peer, acting as client on new transport");
+            requestedTransport.scanForPeers();
+        } else {
+            Timber.d("Transport upgrade requested by client peer, acting as host on new transport");
+            requestedTransport.advertise();
+        }
+
+        callback.transportUpgraded(requester, true);
+    }
+
 
     private @Nullable Transport getPreferredTransportForPeer(Peer peer) {
 
-        String recipientIdentifier = identifiedPeers.inverse().get(peer);
-
-        if (!identifiedPeers.containsValue(peer) ||
-            !identifierTransports.containsKey(recipientIdentifier))
+        if (!peerTransports.containsKey(peer))
                 return null;
 
         // Return the Transport with the highest value (largest MTU)
-        return identifierTransports.get(recipientIdentifier)
-                                   .last();
+        return peerTransports.get(peer)
+                             .last();
     }
 
     private boolean shouldIdentifyPeer(String identifier) {
@@ -154,12 +229,22 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     private void registerTransportForIdentifier(Transport transport, String identifier) {
-        if (!identifierTransports.containsKey(identifier))
-            identifierTransports.put(identifier, new TreeSet<Transport>());
+        if (identifierTransports.containsKey(identifier)) {
+            Timber.w("Transport already registered for identifier %s", identifier);
+            return;
+        }
 
-        boolean newTransport = identifierTransports.get(identifier).add(transport);
+        Timber.d("Transported added for identifier %s", identifier);
+        identifierTransports.put(identifier, transport);
+    }
+
+    private void registerTransportForPeer(Transport transport, Peer peer) {
+        if (!peerTransports.containsKey(peer))
+            peerTransports.put(peer, new TreeSet<Transport>());
+
+        boolean newTransport = peerTransports.get(peer).add(transport);
         if (newTransport)
-            Timber.d("Transport added for identifier %s", newTransport, identifier);
+            Timber.d("Transport added for peer %s", peer.getAlias());
     }
 
     // </editor-fold desc="Private API">
@@ -327,6 +412,9 @@ public class SessionManager implements Transport.TransportCallback,
     @Override
     public void onComplete(SessionMessageDeserializer receiver, SessionMessage message, Exception e) {
 
+        // Process messages belonging to the AirShare framework and propagate
+        // application level messages via our callback
+
         synchronized (lock) {
 
             String senderIdentifier = identifierReceivers.inverse().get(receiver);
@@ -345,6 +433,9 @@ public class SessionManager implements Transport.TransportCallback,
                     identifyingPeers.remove(senderIdentifier);
                     identifiedPeers.put(senderIdentifier, peer);
 
+                    Transport identifierTransport = identifierTransports.get(senderIdentifier);
+                    registerTransportForPeer(identifierTransport, peer);
+
                     if (newIdentity) {
                         Timber.d("Received identity for %s. %s", senderIdentifier, sentIdentityToSender ? "" : "Responding with own.");
                         // As far as upper layers are concerned, connection events occur when the remote
@@ -353,8 +444,14 @@ public class SessionManager implements Transport.TransportCallback,
                         callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED, hostIdentifiers.contains(senderIdentifier));
                     }
 
-                } else if (identifiedPeers.containsKey(senderIdentifier)) {
+                } else if (message instanceof TransportUpgradeMessage) {
+                    Peer peer = identifiedPeers.get(senderIdentifier);
+                    int transportCode = ((TransportUpgradeMessage) message).getTransportCode();
+                    Timber.d("Got TransportUpgradeMessage for transport %d from %s", transportCode, peer.getAlias());
+                    upgradeTransport(peer, transportCode);
 
+                } else if (identifiedPeers.containsKey(senderIdentifier)) {
+                    // This message is not involved in the AirShare framework, so we notify the next layer up
                     callback.messageReceivedFromPeer(message, identifiedPeers.get(senderIdentifier));
 
                 } else {

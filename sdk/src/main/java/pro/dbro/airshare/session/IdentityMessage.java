@@ -1,5 +1,6 @@
 package pro.dbro.airshare.session;
 
+import android.content.Context;
 import android.util.Base64;
 
 import com.google.common.base.Objects;
@@ -9,6 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * Representation of network identity. Closely related to {@link pro.dbro.airshare.session.Peer}
  * Created by davidbrodsky on 2/22/15.
  */
 public class IdentityMessage extends SessionMessage {
@@ -16,8 +18,9 @@ public class IdentityMessage extends SessionMessage {
     public static final String HEADER_TYPE = "identity";
 
     /** Header keys */
-    public static final String HEADER_PUBKEY = "pubkey";
-    public static final String HEADER_ALIAS  = "alias";
+    public static final String HEADER_TRANSPORTS  = "transports";
+    public static final String HEADER_PUBKEY      = "pubkey";
+    public static final String HEADER_ALIAS       = "alias";
 
     private Peer peer;
 
@@ -25,11 +28,16 @@ public class IdentityMessage extends SessionMessage {
      * Convenience creator for deserialization
      */
     public static IdentityMessage fromHeaders(Map<String, Object> headers) {
+        int transports = headers.containsKey(HEADER_TRANSPORTS) ? (int) headers.get(HEADER_TRANSPORTS) : 0;
+
         Peer peer = new Peer(Base64.decode((String) headers.get(HEADER_PUBKEY), Base64.DEFAULT),
                              (String) headers.get(HEADER_ALIAS),
                              new Date(),
-                             -1);
-        return new IdentityMessage((String) headers.get(SessionMessage.HEADER_ID), peer);
+                             -1,
+                             transports);
+
+        return new IdentityMessage((String) headers.get(SessionMessage.HEADER_ID),
+                                   peer);
     }
 
     public IdentityMessage(String id, Peer peer) {
@@ -39,7 +47,12 @@ public class IdentityMessage extends SessionMessage {
         serializeAndCacheHeaders();
     }
 
-    public IdentityMessage(Peer peer) {
+    /**
+     * Constructor for own identity
+     * @param context Context to determine transport capabilities
+     * @param peer    peer to provide keypair, alias
+     */
+    public IdentityMessage(Context context, Peer peer) {
         super();
         this.peer = peer;
         init();
@@ -60,6 +73,7 @@ public class IdentityMessage extends SessionMessage {
 
         headerMap.put(HEADER_ALIAS, peer.getAlias());
         headerMap.put(HEADER_PUBKEY, Base64.encodeToString(peer.getPublicKey(), Base64.DEFAULT));
+        headerMap.put(HEADER_TRANSPORTS, peer.getTransports());
 
         return headerMap;
     }

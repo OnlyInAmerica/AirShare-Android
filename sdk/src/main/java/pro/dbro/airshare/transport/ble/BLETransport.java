@@ -49,6 +49,8 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
     public static final int DEFAULT_MTU_BYTES = 155;
 
+    public static final int TRANSPORT_CODE = 1;
+
     private final UUID serviceUUID;
     private final UUID dataUUID    = UUID.fromString("72A7700C-859D-4317-9E35-D7F5A93005B1");
 
@@ -148,6 +150,11 @@ public class BLETransport extends Transport implements BLETransportCallback {
     public void stop() {
         if (isLollipop() && peripheral.isAdvertising()) peripheral.stop();
         if (central.isScanning())       central.stop();
+    }
+
+    @Override
+    public int getTransportCode() {
+        return TRANSPORT_CODE;
     }
 
     @Override

@@ -44,6 +44,9 @@ import timber.log.Timber;
 public class WifiTransport extends Transport implements WifiP2pManager.PeerListListener,
                                                         WifiP2pManager.ConnectionInfoListener {
 
+    /** Values to id transport useful in bit fields */
+    public static final int TRANSPORT_CODE = 2;
+
     public static final int DEFAULT_MTU_BYTES = 1024;
 
     private static final int PORT = 8787;
@@ -136,6 +139,11 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
         connectionDesired = false;
         if (socketThread != null)
             socketThread.interrupt();
+    }
+
+    @Override
+    public int getTransportCode() {
+        return TRANSPORT_CODE;
     }
 
     @Override

@@ -45,8 +45,14 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
     }
 
+    public static interface TransportUpgradeCallback {
+
+        public void onFinished(Peer remotePeer, boolean success);
+    }
+
     private SessionManager sessionManager;
     private Callback callback;
+    private TransportUpgradeCallback transportUpgradeCallback;
     private boolean activityRecevingMessages;
     private BiMap<Peer, ArrayDeque<OutgoingTransfer>> outPeerTransfers = HashBiMap.create();
     private BiMap<Peer, ArrayDeque<IncomingTransfer>> inPeerTransfers = HashBiMap.create();
@@ -113,7 +119,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         public void registerLocalUserWithService(String userAlias, String serviceName) {
             KeyPair keyPair = SodiumShaker.generateKeyPair();
-            localPeer = new LocalPeer(keyPair, userAlias);
+            localPeer = new LocalPeer(getApplicationContext(), keyPair, userAlias);
 
             if (sessionManager != null) sessionManager.stop();
 
@@ -142,6 +148,11 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         public void send(byte[] data, Peer recipient) {
             addOutgoingTransfer(new OutgoingTransfer(data, recipient, sessionManager));
+        }
+
+        public void requestTransportUpgrade(Peer remotePeer, TransportUpgradeCallback callback) {
+            transportUpgradeCallback = callback;
+            sessionManager.requestTransportUpgrade(remotePeer);
         }
 
         /**
@@ -326,6 +337,12 @@ public class AirShareService extends Service implements ActivityRecevingMessages
                 }
             });
         }
+    }
+
+    @Override
+    public void transportUpgraded(Peer peer, boolean success) {
+        transportUpgradeCallback.onFinished(peer, success);
+        transportUpgradeCallback = null;
     }
 
     // </editor-fold desc="SessionManagerCallback">

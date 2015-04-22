@@ -340,6 +340,9 @@ public class SessionMessageDeserializer {
             case IdentityMessage.HEADER_TYPE:
                 return IdentityMessage.fromHeaders(headers);
 
+            case TransportUpgradeMessage.HEADER_TYPE:
+                return new TransportUpgradeMessage(headers);
+
             case DataTransferMessage.HEADER_TYPE:
                 return new DataTransferMessage(headers, null);
 

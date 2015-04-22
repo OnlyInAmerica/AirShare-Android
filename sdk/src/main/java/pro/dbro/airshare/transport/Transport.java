@@ -3,7 +3,10 @@ package pro.dbro.airshare.transport;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import com.google.common.base.Objects;
+
 import java.lang.ref.WeakReference;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
@@ -64,6 +67,9 @@ public abstract class Transport implements Comparable<Transport> {
 
     public abstract void stop();
 
+    /** Return a unique code identifying this transport */
+    public abstract int getTransportCode();
+
     /**
      * @return the Maximum Transmission Unit, in bytes, or 0 if unlimited.
      */
@@ -72,6 +78,26 @@ public abstract class Transport implements Comparable<Transport> {
     @Override
     public int compareTo (@NonNull Transport another) {
         return getMtuForIdentifier("") - another.getMtuForIdentifier("");
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+
+        if(obj == this) return true;
+        if(obj == null) return false;
+
+        if (getClass().equals(obj.getClass()))
+        {
+            Transport other = (Transport) obj;
+            return getTransportCode() == other.getTransportCode();
+        }
+
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return getTransportCode();
     }
 
 }
