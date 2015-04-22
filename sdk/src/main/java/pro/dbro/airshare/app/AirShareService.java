@@ -10,13 +10,13 @@ import android.os.Looper;
 import android.os.Message;
 import android.support.annotation.Nullable;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.Set;
 
 import pro.dbro.airshare.crypto.KeyPair;
@@ -220,7 +220,8 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         IncomingTransfer incomingTransfer = null;
         for (IncomingTransfer transfer : inPeerTransfers.get(sender)) {
             if (transferMessage instanceof DataTransferMessage) {
-                if (Objects.equals(transfer.getTransferId(), transferMessage.getHeaders().get(SessionMessage.HEADER_ID)))
+                // If we only target API 19+, we can move to the java.util.Objects.equals
+                if (Objects.equal(transfer.getTransferId(), transferMessage.getHeaders().get(SessionMessage.HEADER_ID)))
                     incomingTransfer = transfer;
             } else
                 throw new IllegalStateException("Only DataTransferMessage is supported!");
@@ -235,7 +236,8 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         OutgoingTransfer outgoingTransfer = null;
         for (OutgoingTransfer transfer : outPeerTransfers.get(recipient)) {
             if (transferMessage instanceof DataTransferMessage) {
-                if (Objects.equals(transfer.getTransferId(), transferMessage.getHeaders().get(SessionMessage.HEADER_ID)))
+                // If we only target API 19+, we can move to the java.util.Objects.equals
+                if (Objects.equal(transfer.getTransferId(), transferMessage.getHeaders().get(SessionMessage.HEADER_ID)))
                     outgoingTransfer = transfer;
             } else
                 throw new IllegalStateException("Only DataTransferMessage is supported!");

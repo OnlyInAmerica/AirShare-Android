@@ -133,6 +133,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
     @Override
     public void stop() {
         context.unregisterReceiver(wifiDirectReceiver);
+        connectionDesired = false;
         if (socketThread != null)
             socketThread.interrupt();
     }
@@ -238,6 +239,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
     @Override
     public void onPeersAvailable(WifiP2pDeviceList peers) {
         Timber.d("Got %d available peers", peers.getDeviceList().size());
+        connectionDesired = true;
         for (final WifiP2pDevice device : peers.getDeviceList()) {
             final WifiP2pConfig config = new WifiP2pConfig();
 
