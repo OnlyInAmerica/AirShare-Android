@@ -213,7 +213,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
         // a connection will never be made. Instead, both devices enter discovery mode
         // but only the client will request connection when a peer is discovered
         //if (!localPrefersToHost*/)
-            discoverPeers();
+        discoverPeers();
     }
 
     /**
@@ -284,13 +284,19 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                     if (manager != null && discoveringPeers) {
                         // TODO: How to handle when multiple P2P peers are available?
                         int numPeers = deviceList.getDeviceList().size();
-                        Timber.d("Got %d available peers", numPeers);
+                        String firstPeerStatus = numPeers > 0 ? "First peer status + " + getDescriptionForDeviceStatus(deviceList.getDeviceList().iterator().next().status) :
+                                                                "";
+                        Timber.d("Got %d available peers. %s", numPeers, firstPeerStatus);
                         // Only the client should initiate connection
-                        if (!localPrefersToHost && numPeers > 0) {
+                        // I've seen only one device see the other, so let's actually let both devices initiate connection
+                        // and limit ourselves to only one connection
+                        if (/*!localPrefersToHost && */numPeers > 0) {
                             WifiP2pDevice connectableDevice = deviceList.getDeviceList().iterator().next();
-                            initiateConnectionToPeer(connectableDevice);
-                        } else
-                            Timber.d("Local is host so allow client to begin connection");
+                            if (connectableDevice.status == WifiP2pDevice.AVAILABLE) {
+                                initiateConnectionToPeer(connectableDevice);
+                            }
+                        } /*else
+                            Timber.d("Local is host so allow client to begin connection");*/
                     } else {
                         Timber.w("Peers changed, but %s", manager == null ? "manager is null" : "discoveringPeers is false");
                     }
