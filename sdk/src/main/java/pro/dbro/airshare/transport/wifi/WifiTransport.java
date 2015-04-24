@@ -8,10 +8,12 @@ import android.net.NetworkInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pDeviceList;
+import android.net.wifi.p2p.WifiP2pGroup;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Looper;
 import android.support.annotation.NonNull;
+import android.widget.Toast;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -24,6 +26,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -37,12 +40,11 @@ import timber.log.Timber;
 /**
  * Wifi Direct Transport. Requires Android 4.0.
  *
- * Proof-of-concept. Not yet ready for use.
+ * Proof-of-concept. Not yet ready for use. Supports a single WiFi Direct connection at time
  *
  * Created by davidbrodsky on 2/21/15.
  */
-public class WifiTransport extends Transport implements WifiP2pManager.PeerListListener,
-                                                        WifiP2pManager.ConnectionInfoListener {
+public class WifiTransport extends Transport implements WifiP2pManager.ConnectionInfoListener, WifiP2pManager.ChannelListener {
 
     /** Values to id transport useful in bit fields */
     public static final int TRANSPORT_CODE = 2;
@@ -60,6 +62,10 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
     private Thread socketThread;
 
     private boolean connectionDesired = true;
+    private boolean discoveringPeers = false;
+    private boolean localPrefersToHost = false;
+    private boolean connectionInitiated = false;
+    private boolean retryChannel = true;
 
     private BiMap<String, String> macToIpAddress = HashBiMap.create();
 
@@ -69,6 +75,19 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
     /** Identifier -> Queue of outgoing buffers */
     private final HashMap<String, ArrayDeque<byte[]>> outBuffers = new HashMap<>();
 
+    private final WifiP2pManager.ActionListener connectionInitiationListener = new WifiP2pManager.ActionListener() {
+        @Override
+        public void onSuccess() {
+            connectionInitiated = true;
+            Timber.d("Connection initiated");
+        }
+
+        @Override
+        public void onFailure(int reason) {
+            Timber.d("Failed to connect with reason: %s", getDescriptionForActionListenerError(reason));
+        }
+    };
+
     public WifiTransport(@NonNull Context context,
                          @NonNull String serviceName,
                          @NonNull TransportCallback callback) {
@@ -77,15 +96,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
         this.context = context;
 
         manager = (WifiP2pManager) context.getSystemService(Context.WIFI_P2P_SERVICE);
-        channel = manager.initialize(context, Looper.getMainLooper(), null);
 
-        intentFilter = new IntentFilter();
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
-
-        context.registerReceiver(wifiDirectReceiver, intentFilter);
     }
 
     // <editor-fold desc="Transport">
@@ -115,30 +126,29 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
 
     @Override
     public void advertise() {
-        Timber.e("Advertise not yet implemented");
+        initializeWiFiDirect(true);
     }
 
     @Override
     public void scanForPeers() {
-        manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
-            @Override
-            public void onSuccess() {
-                Timber.d("Peer discovery initiated");
-            }
-
-            @Override
-            public void onFailure(int reason) {
-                Timber.e("Peer discovery failed with reason " + reason);
-            }
-        });
+        initializeWiFiDirect(false);
     }
 
     @Override
     public void stop() {
+        Timber.d("Stopping WiFi");
         context.unregisterReceiver(wifiDirectReceiver);
         connectionDesired = false;
         if (socketThread != null)
             socketThread.interrupt();
+
+        if (discoveringPeers)
+            manager.stopPeerDiscovery(channel, null);
+
+        manager.cancelConnect(channel, null);
+        manager.removeGroup(channel, null);
+
+        discoveringPeers = false;
     }
 
     @Override
@@ -155,7 +165,55 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
 
     // </editor-fold desc="Transport">
 
+    private void initializeWiFiDirect(boolean asHost) {
+        if (channel != null) {
+            Timber.e("Wi-Fi Direct already initialized! Ignoring");
+            return;
+        }
+
+        localPrefersToHost = asHost;
+
+        channel = manager.initialize(context, Looper.getMainLooper(), this);
+
+        intentFilter = new IntentFilter();
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
+
+        context.registerReceiver(wifiDirectReceiver, intentFilter);
+
+        // Begin peer discovery, if appropriate, when Wi-Fi Direct ready
+    }
+
+    private void discoverPeers() {
+        if (discoveringPeers) {
+            Timber.w("Already discovering peers. For WiFi Transport there is no meaning to simultaneously 'scanning' and 'advertising");
+            return;
+        }
+
+        discoveringPeers = true;
+
+        manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
+            @Override
+            public void onSuccess() {
+                Timber.d("Peer discovery initiated");
+            }
+
+            @Override
+            public void onFailure(int reason) {
+                String reasonDescription = getDescriptionForActionListenerError(reason);
+                Timber.e("Peer discovery failed with reason " + reasonDescription);
+            }
+        });
+    }
+
     public void onWifiDirectReady() {
+        // It appears that if only one device enters discovery mode,
+        // a connection will never be made. Instead, both devices enter discovery mode
+        // but only the client will request connection when a peer is discovered
+        //if (!localPrefersToHost*/)
+            discoverPeers();
     }
 
     /**
@@ -196,92 +254,149 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION.equals(action)) {
 
-                // UI update to indicate wifi p2p status.
-                int state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1);
-                if (state == WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
-                    // Wifi Direct mode is enabled
-                    Timber.d("Wifi Direct enabled");
-                    onWifiDirectReady();
-                } else {
-                    Timber.w("Wifi Direct is not enabled");
-                }
-            } else if (WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION.equals(action)) {
+            final WifiP2pDevice device = (WifiP2pDevice) intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);
+            final WifiP2pDeviceList deviceList = (WifiP2pDeviceList) intent.getParcelableExtra(WifiP2pManager.EXTRA_P2P_DEVICE_LIST);
+            final WifiP2pGroup p2pGroup = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_GROUP);
+            final WifiP2pInfo p2pInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_INFO);
 
-                // request available peers from the wifi p2p manager. This is an
-                // asynchronous call and the calling activity is notified with a
-                // callback on PeerListListener.onPeersAvailable()
-                Timber.d("P2P peers changed");
-                if (manager != null) {
-                    manager.requestPeers(channel, WifiTransport.this);
-                }
-            } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION.equals(action)) {
+            switch(action) {
 
-                if (manager == null) {
-                    return;
-                }
+                case WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION:
 
-                //WifiP2pGroup p2pGroup = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_GROUP);
-                //WifiP2pInfo p2pInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_INFO);
-                NetworkInfo networkInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO);
-                final WifiP2pDevice device = (WifiP2pDevice) intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);
+                    // UI update to indicate wifi p2p status.
+                    int state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1);
+                    if (state == WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
+                        // Wifi Direct mode is enabled
+                        Timber.d("Wifi Direct enabled");
+                        onWifiDirectReady();
+                    } else {
+                        Timber.w("Wifi Direct is not enabled");
+                    }
 
-                if (networkInfo.isConnected()) {
-                    // we are connected with the other device, request connection
-                    // info to find group owner IP
-                    Timber.d("Connected to %s. Requesting connection info", device != null ? device.deviceAddress : "");
-                    manager.requestConnectionInfo(channel, WifiTransport.this);
-                } else {
-                    Timber.d("Disconnected from %s", device != null ? device.deviceAddress : "");
-                    // It's a disconnect
-                }
-            } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION.equals(action)) {
-                WifiP2pDevice device = (WifiP2pDevice) intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);
-                Timber.d("This device (%s) changed", device.deviceAddress);
+                    break;
 
+                case WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION:
+
+                    // request available peers from the wifi p2p manager. This is an
+                    // asynchronous call and the calling activity is notified with a
+                    // callback on PeerListListener.onPeersAvailable()
+                    if (manager != null && discoveringPeers) {
+                        // TODO: How to handle when multiple P2P peers are available?
+                        int numPeers = deviceList.getDeviceList().size();
+                        Timber.d("Got %d available peers", numPeers);
+                        // Only the client should initiate connection
+                        if (!localPrefersToHost && numPeers > 0) {
+                            WifiP2pDevice connectableDevice = deviceList.getDeviceList().iterator().next();
+                            initiateConnectionToPeer(connectableDevice);
+                        } else
+                            Timber.d("Local is host so allow client to begin connection");
+                    } else {
+                        Timber.w("Peers changed, but %s", manager == null ? "manager is null" : "discoveringPeers is false");
+                    }
+
+                    break;
+
+                case WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION:
+
+                    Timber.d("Local device is %s of %s P2P group '%s' with %d clients",
+                             p2pGroup.isGroupOwner() ? "owner" : "client",
+                             p2pInfo.groupFormed ? "formed" : "unformed",
+                             p2pGroup.getNetworkName(),
+                             p2pGroup.getClientList().size());
+
+                    if (manager == null) {
+                        Timber.d("Connection changed but manager null.");
+                        return;
+                    }
+
+                    NetworkInfo networkInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO);
+
+                    if (networkInfo.isConnected()) {
+                        // we are connected with the other device, request connection
+                        // info to find group owner IP
+                        Timber.d("Connected to %s", device != null ? device.deviceAddress : "");
+                        if (discoveringPeers) {
+                            Timber.d("Connected to %s. Requesting connection info", device != null ? device.deviceAddress : "");
+                            manager.requestConnectionInfo(channel, WifiTransport.this);
+                        }
+                    } else {
+                        Timber.d("Network is %s", networkInfo.getState());
+                    }
+
+                    break;
+
+                case WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION:
+
+                    Timber.d("Local device status %s", getDescriptionForDeviceStatus(device.status));
+
+                    break;
+
+                case WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION:
+
+                    boolean started = intent.getIntExtra(WifiP2pManager.EXTRA_DISCOVERY_STATE, 0) ==
+                                      WifiP2pManager.WIFI_P2P_DISCOVERY_STARTED;
+
+                    Timber.d("P2P Discovery %s", started ? "started" : "stopped");
+
+                    break;
             }
         }
     };
 
-    @Override
-    public void onPeersAvailable(WifiP2pDeviceList peers) {
-        Timber.d("Got %d available peers", peers.getDeviceList().size());
-        connectionDesired = true;
-        for (final WifiP2pDevice device : peers.getDeviceList()) {
+    private void initiateConnectionToPeer(WifiP2pDevice device) {
+        Timber.d("Initiating connection to %s type %s with status %s",
+                 device.deviceAddress,
+                 device.primaryDeviceType,
+                 getDescriptionForDeviceStatus(device.status));
+
+        if (!connectedPeers.contains(device.deviceAddress)) {
+
+            if (connectingPeers.contains(device.deviceAddress) && socketThread != null) {
+                Timber.w("Had stale connection opening with peer. Closing and starting anew");
+                connectionDesired = false;
+                socketThread.interrupt();
+                socketThread = null;
+            }
+
+            connectingPeers.add(device.deviceAddress);
+
             final WifiP2pConfig config = new WifiP2pConfig();
-
-            if (!connectedPeers.contains(device.deviceAddress) &&
-                !connectingPeers.contains(device.deviceAddress)) {
-
-                connectingPeers.add(device.deviceAddress);
-
-                config.deviceAddress = device.deviceAddress;
-                Timber.d("Requesting connection to %s", config.deviceAddress);
-                manager.connect(channel, config, new WifiP2pManager.ActionListener() {
+            config.deviceAddress = device.deviceAddress;
+            config.groupOwnerIntent = localPrefersToHost ? 15 : 0;
+            Timber.d("Requesting connection to %s with local as %s", config.deviceAddress, localPrefersToHost ? "host" : "client");
+            if (connectionInitiated) {
+                manager.cancelConnect(channel, new WifiP2pManager.ActionListener() {
                     @Override
                     public void onSuccess() {
-                        Timber.d("Connection to %s initiated", config.deviceAddress);
-                        connectedPeers.add(device.deviceAddress);
+                        connectionInitiated = false;
+                        Timber.d("Cancelled stale connection attempt successfully");
+                        connectionDesired = true;
+                        manager.connect(channel, config, connectionInitiationListener);
                     }
 
                     @Override
                     public void onFailure(int reason) {
-                        Timber.d("Failed to connect to %s", config.deviceAddress);
-                        connectingPeers.remove(device.deviceAddress);
+                        Timber.d("Failed to cancel stale connection attempt reason %s.", getDescriptionForActionListenerError(reason));
+
+//                                connectionInitiated = false;
+//                                Timber.d("Cancelled stale connection attempt successfully");
+//                                connectionDesired = true;
+//                                manager.connect(channel, config, connectionInitiationListener);
                     }
                 });
+            } else {
+                connectionDesired = true;
+                manager.connect(channel, config, connectionInitiationListener);
             }
-            break;  // For now just try and connect to the 'first' available peer
         }
     }
 
     @Override
     public void onConnectionInfoAvailable(WifiP2pInfo info) {
         // After a connection we request connection info
-
         if (info.groupFormed && info.isGroupOwner) {
-            Timber.d("This device is the group owner");
+            Timber.d("This device is the host (group owner)");
             // At this point we want to open a socket and receive data + the client address
             startServerSocket();
 
@@ -293,6 +408,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                 // We can associate the MAC address we initially discovered
                 // with the IP address now available
                 String mac = connectingPeers.iterator().next();
+                connectedPeers.add(info.groupOwnerAddress.getHostAddress());
                 macToIpAddress.put(mac, info.groupOwnerAddress.getHostAddress());
                 Timber.d("associated %s with %s", mac,
                         info.groupOwnerAddress.getHostAddress());
@@ -318,15 +434,14 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                 try {
                     Socket socket = new Socket();
                     socket.bind(null);
-                    Thread.sleep(2000); // Ensure server is started
                     Timber.d("Client opening socket to %s", address.getHostAddress());
                     socket.connect((new InetSocketAddress(address, PORT)), SOCKET_TIMEOUT_MS);
                     Timber.d("Client connected to %s", address.getHostAddress());
-                    callback.get().identifierUpdated(WifiTransport.this, address.getHostAddress(), ConnectionStatus.CONNECTED, false, null);
+                    callback.get().identifierUpdated(WifiTransport.this, address.getHostAddress(), ConnectionStatus.CONNECTED, true, null);
 
                     maintainSocket(socket, address.getHostAddress());
 
-                } catch (IOException | InterruptedException e) {
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
@@ -347,8 +462,8 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                     String clientAddress = client.getInetAddress().getHostAddress();
                     Timber.d("Connected to %s (local is server)", clientAddress);
 
-                    // Let the client report connection events. Server will report when identity received
                     connectedPeers.add(clientAddress);
+                    callback.get().identifierUpdated(WifiTransport.this, clientAddress, ConnectionStatus.CONNECTED, false, null);
 
                     maintainSocket(client, client.getInetAddress().getHostAddress());
 
@@ -376,10 +491,8 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
             int len;
 
             while (connectionDesired) {
-                // TODO : Close the socket when requested
 
                 // Read incoming data
-                //Timber.d("Reading incoming data");
                 try {
                     while ((len = inputStream.read(buf)) > 0) {
                         ByteArrayOutputStream os = new ByteArrayOutputStream(len);
@@ -388,13 +501,16 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
                         callback.get().dataReceivedFromIdentifier(WifiTransport.this, os.toByteArray(), remoteAddress);
                     }
                 } catch (SocketTimeoutException e) {
+                    // No incoming data received
                     //Timber.d("No incoming data found in timeout period");
+                } catch (SocketException e2) {
+                    // Socket was closed
+                    Timber.d("Socket closed");
+                    connectionDesired = false;
+                    break;
                 }
 
-                // Never proceeds from reading onward..
-
                 // Write outgoing data
-                //Timber.d("Writing outgoing data");
                 if (outBuffers.containsKey(remoteAddress) &&
                         outBuffers.get(remoteAddress).size() > 0) {
 
@@ -415,6 +531,60 @@ public class WifiTransport extends Transport implements WifiP2pManager.PeerListL
             Timber.d("Closed socket with %s", remoteAddress);
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private static String getDescriptionForDeviceStatus(int status) {
+
+        switch (status) {
+            case WifiP2pDevice.CONNECTED:
+                return "Connected";
+
+            case WifiP2pDevice.INVITED:
+                return "Invited";
+
+            case WifiP2pDevice.FAILED:
+                return "Failed";
+
+            case WifiP2pDevice.AVAILABLE:
+                return "Available";
+
+            case WifiP2pDevice.UNAVAILABLE:
+                return "Unavailable";
+
+            default:
+                return "?";
+        }
+    }
+
+    private static String getDescriptionForActionListenerError(int error) {
+        String reasonDescription = null;
+        switch (error) {
+
+            case WifiP2pManager.ERROR:
+                reasonDescription = "Framework error";
+                break;
+
+            case WifiP2pManager.BUSY:
+                reasonDescription = "Device busy";
+                break;
+
+            case WifiP2pManager.P2P_UNSUPPORTED:
+                reasonDescription = "Device does not support WifiP2P";
+                break;
+        }
+
+        return reasonDescription;
+    }
+
+    @Override
+    public void onChannelDisconnected() {
+        if (manager != null && !retryChannel) {
+            Timber.d("Channel lost, retrying...");
+            retryChannel = true;
+            manager.initialize(context, Looper.getMainLooper(), this);
+        } else {
+            Timber.e("Severe! Channel is probably lost premanently. Try Disable/Re-Enable P2P.");
         }
     }
 }

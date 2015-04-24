@@ -1,5 +1,7 @@
 package pro.dbro.airshare.transport.ble;
 
+import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
@@ -14,6 +16,7 @@ import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
+import android.os.Build;
 import android.os.ParcelUuid;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -49,6 +52,8 @@ import timber.log.Timber;
  *
  * Created by davidbrodsky on 10/2/14.
  */
+// TEMPORARY - Should add 18 APIs for use on older platforms
+@TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class BLECentral {
     public static final String TAG = "BLECentral";
 

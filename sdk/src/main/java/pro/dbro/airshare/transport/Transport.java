@@ -67,7 +67,13 @@ public abstract class Transport implements Comparable<Transport> {
 
     public abstract void stop();
 
-    /** Return a unique code identifying this transport */
+    /** Return a unique code identifying this transport.
+     *  This value must be a valid bit field value that does
+     *  not conflict with any existing transports.
+     *
+     *  see {@link pro.dbro.airshare.transport.wifi.WifiTransport#TRANSPORT_CODE}
+     *  see {@link pro.dbro.airshare.transport.ble.BLETransport#TRANSPORT_CODE}
+     */
     public abstract int getTransportCode();
 
     /**

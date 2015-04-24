@@ -6,6 +6,7 @@ import android.content.pm.PackageManager;
 
 import pro.dbro.airshare.crypto.KeyPair;
 import pro.dbro.airshare.transport.wifi.WifiTransport;
+import timber.log.Timber;
 
 /**
  * Created by davidbrodsky on 2/21/15.
@@ -23,6 +24,8 @@ public class LocalPeer extends Peer {
         transports = doesDeviceSupportWifiDirect(context) ?
                         transports | WifiTransport.TRANSPORT_CODE :
                         transports;
+
+        Timber.d("LocalPeer supports WifiDirect %b %b", doesDeviceSupportWifiDirect(context), supportsTransport(WifiTransport.TRANSPORT_CODE));
 
     }
 

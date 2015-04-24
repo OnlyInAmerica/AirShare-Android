@@ -8,6 +8,7 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import com.google.common.base.Objects;
@@ -43,16 +44,12 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         public void onPeerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean peerIsHost);
 
-    }
+        public void peerTransportUpdated(@NonNull Peer peer, @Nullable Transport newTransport, @Nullable Exception exception);
 
-    public static interface TransportUpgradeCallback {
-
-        public void onFinished(Peer remotePeer, boolean success);
     }
 
     private SessionManager sessionManager;
     private Callback callback;
-    private TransportUpgradeCallback transportUpgradeCallback;
     private boolean activityRecevingMessages;
     private BiMap<Peer, ArrayDeque<OutgoingTransfer>> outPeerTransfers = HashBiMap.create();
     private BiMap<Peer, ArrayDeque<IncomingTransfer>> inPeerTransfers = HashBiMap.create();
@@ -150,8 +147,18 @@ public class AirShareService extends Service implements ActivityRecevingMessages
             addOutgoingTransfer(new OutgoingTransfer(data, recipient, sessionManager));
         }
 
-        public void requestTransportUpgrade(Peer remotePeer, TransportUpgradeCallback callback) {
-            transportUpgradeCallback = callback;
+        /**
+         * Request a transport upgrade with the remote peer. At this time the only available
+         * supplementary transport is {@link pro.dbro.airshare.transport.wifi.WifiTransport}
+         * which requires the host application add the following permissions:
+         *
+         * <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+         * <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+         * <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+         * <uses-permission android:name="android.permission.INTERNET" />
+         * <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+         */
+        public void requestTransportUpgrade(Peer remotePeer) {
             sessionManager.requestTransportUpgrade(remotePeer);
         }
 
@@ -340,9 +347,13 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     }
 
     @Override
-    public void transportUpgraded(Peer peer, boolean success) {
-        transportUpgradeCallback.onFinished(peer, success);
-        transportUpgradeCallback = null;
+    public void peerTransportUpdated(@NonNull final Peer peer, @Nullable final Transport newTransport, @Nullable final Exception exception) {
+        foregroundHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (callback != null) callback.peerTransportUpdated(peer, newTransport, exception);
+            }
+        });
     }
 
     // </editor-fold desc="SessionManagerCallback">

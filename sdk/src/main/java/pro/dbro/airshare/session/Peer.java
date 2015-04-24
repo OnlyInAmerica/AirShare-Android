@@ -49,7 +49,7 @@ public class Peer {
     }
 
     public boolean supportsTransport(int transportCode) {
-        return (transports & transportCode) == 1;
+        return (transports & transportCode) == transportCode;
     }
 
     @Override
