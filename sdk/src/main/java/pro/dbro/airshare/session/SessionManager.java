@@ -261,7 +261,7 @@ public class SessionManager implements Transport.TransportCallback,
 
     private void registerTransportForIdentifier(Transport transport, String identifier) {
         if (identifierTransports.containsKey(identifier)) {
-            Timber.w("Transport already registered for identifier %s", identifier);
+            //Timber.w("Transport already registered for identifier %s", identifier);
             return;
         }
 
