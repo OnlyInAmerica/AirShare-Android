@@ -14,6 +14,7 @@ import android.net.wifi.p2p.WifiP2pManager;
 import android.os.CountDownTimer;
 import android.os.Looper;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -158,6 +159,11 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
 
         manager.cancelConnect(channel, null);
         manager.removeGroup(channel, null);
+
+        connectedPeers.clear();
+        connectingPeers.clear();
+
+        outBuffers.clear();
 
         discoveringPeers = false;
     }
@@ -312,11 +318,11 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                                                                 "";
                         Timber.d("Got %d available peers. %s", numPeers, firstPeerStatus);
                         // Only the client should initiate connection
-                        // I've seen only one device see the other, so let's actually let both devices initiate connection
-                        // and limit ourselves to only one connection
-                        if (/*!localPrefersToHost && */numPeers > 0) {
+                        if (!localPrefersToHost && numPeers > 0) {
                             WifiP2pDevice connectableDevice = deviceList.getDeviceList().iterator().next();
                             if (connectableDevice.status == WifiP2pDevice.AVAILABLE) {
+                                // If the peer status is available, the prior invitation is void
+                                connectingPeers.remove(connectableDevice.deviceAddress);
                                 initiateConnectionToPeer(connectableDevice);
                             }
                         } /*else
@@ -475,7 +481,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                     Timber.d("Client connected to %s", address.getHostAddress());
                     callback.get().identifierUpdated(WifiTransport.this, address.getHostAddress(), ConnectionStatus.CONNECTED, true, null);
 
-                    maintainSocket(socket, address.getHostAddress());
+                    maintainSocket(null, socket, address.getHostAddress());
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -504,7 +510,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                     connectedPeers.add(clientAddress);
                     callback.get().identifierUpdated(WifiTransport.this, clientAddress, ConnectionStatus.CONNECTED, false, null);
 
-                    maintainSocket(client, client.getInetAddress().getHostAddress());
+                    maintainSocket(serverSocket, client, client.getInetAddress().getHostAddress());
 
                 } catch (IOException e) {
                     Timber.e(e, "Failed to read socket inputstream");
@@ -519,7 +525,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
      * Maintains the given socket in a read / write loop until
      * {@link #connectionDesired} is set false.
      */
-    private void maintainSocket(Socket socket, String remoteAddress) {
+    private void maintainSocket(@Nullable ServerSocket serverSocket, Socket socket, String remoteAddress) {
         try {
             socket.setSoTimeout(500);
 
@@ -545,7 +551,6 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                 } catch (SocketException e2) {
                     // Socket was closed
                     Timber.d("Socket closed");
-                    connectionDesired = false;
                     break;
                 }
 
@@ -567,7 +572,15 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
             outputStream.close();
             inputStream.close();
             socket.close();
+            if (serverSocket != null) serverSocket.close();
             Timber.d("Closed socket with %s", remoteAddress);
+            if (connectionDesired) {
+                // If we arrive here the connection was closed by the other party.
+                stop();
+            }
+
+            if (callback.get() != null)
+                callback.get().identifierUpdated(this, remoteAddress, ConnectionStatus.DISCONNECTED, !localPrefersToHost, null);
         } catch (IOException e) {
             e.printStackTrace();
         }
