@@ -423,7 +423,6 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                     device.primaryDeviceType,
                     getDescriptionForDeviceStatus(device.status));
 
-            connectionDesired = true;
             manager.connect(channel, config, new DeviceActionListener(device));
 
         } else {
@@ -527,6 +526,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
      */
     private void maintainSocket(@Nullable ServerSocket serverSocket, Socket socket, String remoteAddress) {
         try {
+            connectionDesired = true;
             socket.setSoTimeout(500);
 
             InputStream inputStream = socket.getInputStream();
@@ -573,7 +573,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
             inputStream.close();
             socket.close();
             if (serverSocket != null) serverSocket.close();
-            Timber.d("Closed socket with %s", remoteAddress);
+            Timber.d("%s closed socket with %s", connectionDesired ? "remote" : "local", remoteAddress);
             if (connectionDesired) {
                 // If we arrive here the connection was closed by the other party.
                 stop();
