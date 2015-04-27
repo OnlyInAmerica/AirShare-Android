@@ -641,7 +641,9 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
     }
 
     private void cancelPeerDiscoveryTimer() {
-        peerDiscoveryTimer.cancel();
-        peerDiscoveryTimer = null;
+        if (peerDiscoveryTimer != null) {
+            peerDiscoveryTimer.cancel();
+            peerDiscoveryTimer = null;
+        }
     }
 }
