@@ -163,7 +163,7 @@ public class SessionMessageDeserializer {
             if (version != SessionMessage.CURRENT_HEADER_VERSION) {
                 Timber.e("Unknown SessionMessage version");
                 if (callback != null)
-                    callback.onComplete(this, null, new UnsupportedOperationException("Unknown SessionMessage version"));
+                    callback.onComplete(this, null, new UnsupportedOperationException("Unknown SessionMessage version " + version));
                 return;
             }
             dataBytesProcessed += SessionMessage.HEADER_VERSION_BYTES;

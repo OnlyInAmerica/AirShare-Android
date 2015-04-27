@@ -356,13 +356,9 @@ public class SessionManager implements Transport.TransportCallback,
 
                         } else if (message.getType().equals(TransportUpgradeMessage.HEADER_TYPE)) {
                             // Report transport upgraded once peer connects over new transport
-                            // don't propagate this message send to upper layers
+                            // don't report to #messageSendingToPeer
                             Timber.d("Sent TranportUpgradeMessage");
-//                            TransportUpgradeMessage upgradeMessage = (TransportUpgradeMessage) message;
-//
-//                            callback.peerTransportUpdated(recipient,
-//                                                       getAvailableTransportByCode(upgradeMessage.getTransportCode()),
-//                                                       null);
+
                         } else {
                             callback.messageSentToPeer(message,
                                     identifiedPeers.get(identifier),
