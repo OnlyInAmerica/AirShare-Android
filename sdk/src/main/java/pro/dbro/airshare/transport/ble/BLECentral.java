@@ -85,6 +85,7 @@ public class BLECentral {
     private BLETransportCallback transportCallback;
 
     private boolean isScanning = false;
+    private boolean reportedStartScanSuccess = false;
 
     // <editor-fold desc="Public API">
 
@@ -201,6 +202,12 @@ public class BLECentral {
         scanCallback = new ScanCallback() {
             @Override
             public void onScanResult(int callbackType, ScanResult scanResult) {
+
+                if (!reportedStartScanSuccess) {
+                    Timber.d("Scanning started successfully");
+                    reportedStartScanSuccess = true;
+                }
+
                 if (connectedDevices.containsKey(scanResult.getDevice().getAddress())) {
                     // If we're already connected, forget it
                     //Timber.d("Denied connection. Already connected to  " + scanResult.getDevice().getAddress());
@@ -427,7 +434,7 @@ public class BLECentral {
 
             @Override
             public void onScanFailed(int i) {
-                Timber.d("Scan failed with code " + i);
+                Timber.e("Scan failed with code " + i);
             }
         };
     }
@@ -464,6 +471,7 @@ public class BLECentral {
             scanner.stopScan(scanCallback);
             scanner = null;
             isScanning = false;
+            reportedStartScanSuccess = false;
         }
     }
 

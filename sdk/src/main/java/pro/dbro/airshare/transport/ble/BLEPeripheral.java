@@ -77,7 +77,7 @@ public class BLEPeripheral {
 
         @Override
         public void onStartFailure(int errorCode) {
-            Timber.d("Advertising failed with code " + errorCode);
+            Timber.e("Advertising failed with code " + errorCode);
         }
     };
 
