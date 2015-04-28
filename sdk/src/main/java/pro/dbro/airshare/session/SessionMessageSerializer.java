@@ -17,6 +17,8 @@ import timber.log.Timber;
  */
 public class SessionMessageSerializer {
 
+    private static final boolean VERBOSE = false;
+
     private ArrayList<Pair<Integer, SessionMessage>> completedMessages;
     private ArrayDeque<SessionMessage> messages;
     private byte[] lastChunk;
@@ -92,7 +94,7 @@ public class SessionMessageSerializer {
      */
     public @Nullable Pair<SessionMessage, Float> ackChunkDelivery() {
         ackCount++;
-        Timber.d("Ack");
+        if (VERBOSE) Timber.d("Ack");
         SessionMessage message = null;
         float progress = 0;
 
@@ -100,7 +102,7 @@ public class SessionMessageSerializer {
             if (messagePair.first >= ackCount) {
                 message = messagePair.second;
                 progress = ((float) ackCount) / messagePair.first;
-                Timber.d("ackChunkDelivery reporting prev msg progress %f", progress);
+                if (VERBOSE) Timber.d("ackChunkDelivery reporting prev msg progress %f", progress);
                 break;
             }
         }
@@ -108,7 +110,7 @@ public class SessionMessageSerializer {
         if (message == null) {
             message = messages.peek();
             progress = getCurrentMessageProgress();
-            Timber.d("ackChunkDelivery reporting current progress %f", progress);
+            if (VERBOSE) Timber.d("ackChunkDelivery reporting current progress %f", progress);
         }
 
         if (message == null) return null; // Acknowledgements have fallen out of sync!

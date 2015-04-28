@@ -47,6 +47,8 @@ import timber.log.Timber;
  */
 public class WifiTransport extends Transport implements WifiP2pManager.ConnectionInfoListener, WifiP2pManager.ChannelListener {
 
+    private static final boolean VERBOSE = false;
+
     /** Values to id transport useful in bit fields */
     public static final int TRANSPORT_CODE = 2;
 
@@ -271,7 +273,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                 }
             }
 
-            Timber.d("Queued %d outgoing bytes for %s", data.length, identifier);
+            if (VERBOSE) Timber.d("Queued %d outgoing bytes for %s", data.length, identifier);
             outBuffers.notify();
         }
     }
@@ -542,7 +544,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                     while ((len = inputStream.read(buf)) > 0) {
                         ByteArrayOutputStream os = new ByteArrayOutputStream(len);
                         os.write(buf, 0, len);
-                        Timber.d("Got %d bytes from %s", len, remoteAddress);
+                        if (VERBOSE) Timber.d("Got %d bytes from %s", len, remoteAddress);
                         callback.get().dataReceivedFromIdentifier(WifiTransport.this, os.toByteArray(), remoteAddress);
                     }
                 } catch (SocketTimeoutException e) {
@@ -562,7 +564,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
 
                     while (outBuffers.get(remoteAddress).size() > 0) {
                         outputStream.write(outBuffersForPeer.peek());
-                        Timber.d("Wrote %d bytes to %s", outBuffersForPeer.peek().length, remoteAddress);
+                        if (VERBOSE) Timber.d("Wrote %d bytes to %s", outBuffersForPeer.peek().length, remoteAddress);
                         callback.get().dataSentToIdentifier(WifiTransport.this, outBuffersForPeer.poll(), remoteAddress, null);
                     }
 

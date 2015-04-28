@@ -30,6 +30,8 @@ public class SessionManager implements Transport.TransportCallback,
                                        SessionMessageDeserializer.SessionMessageDeserializerCallback,
                                        SessionMessageScheduler {
 
+    private static final boolean VERBOSE = false;
+
     public interface SessionManagerCallback {
 
         public void peerStatusUpdated(@NonNull Peer peer, @NonNull Transport.ConnectionStatus newStatus, boolean isHost);
@@ -328,11 +330,11 @@ public class SessionManager implements Transport.TransportCallback,
                 SessionMessage message = messagePair.first;
                 float progress = messagePair.second;
 
-                Timber.d("%d %s bytes (%.0f pct) sent to %s",
-                        data.length,
-                        message.getType(),
-                        progress * 100,
-                        identifier);
+                if (VERBOSE) Timber.d("%d %s bytes (%.0f pct) sent to %s",
+                                      data.length,
+                                      message.getType(),
+                                      progress * 100,
+                                      identifier);
 
                 if (progress == 1 && message.equals(localIdentityMessage)) {
                     Timber.d("Local identity acknowledged by recipient");
@@ -485,7 +487,7 @@ public class SessionManager implements Transport.TransportCallback,
     public void onBodyProgress(SessionMessageDeserializer receiver, SessionMessage message, float progress) {
 
         String senderIdentifier = identifierReceivers.inverse().get(receiver);
-        Timber.d("Received %s message with progress %f from %s", message.getType(), progress, senderIdentifier);
+        if (VERBOSE) Timber.d("Received %s message with progress %f from %s", message.getType(), progress, senderIdentifier);
 
         callback.messageReceivingFromPeer(message, identifiedPeers.get(senderIdentifier), progress);
     }
