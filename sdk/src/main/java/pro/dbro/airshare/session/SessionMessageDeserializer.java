@@ -35,8 +35,8 @@ import timber.log.Timber;
  *
  * This class assumes contiguous serialized SessionMessage chunks will be delivered in-order and
  * that any discontinuities in the data stream will be reported by the client of this class via
- * {@link #reset()}. A call to {@link #reset()} will result in the loss of the partially accumulated
- * SessionMessage.
+ * {@link #reset(boolean)}. A call to {@link #reset(boolean)} with true argument will result
+ * in the loss of any partially accumulated SessionMessage.
  *
  * Created by davidbrodsky on 2/24/15.
  */
@@ -73,6 +73,7 @@ public class SessionMessageDeserializer {
     private int headerLength;
     private int bodyLength;
     private int bodyBytesReceived;
+    private int bufferOffset;
 
     public SessionMessageDeserializer(Context context, SessionMessageDeserializerCallback callback) {
         buffer = ByteBuffer.allocate(5 * 1000);
@@ -83,12 +84,17 @@ public class SessionMessageDeserializer {
     }
 
     /**
-     * Reset the state of the receiver in preparation for a new SessionMessage, losing any
+     * Reset the state of the receiver in preparation for a new SessionMessage.
+     *
+     * @param clear whether to delete unprocessed data in {@link #buffer}. If the data stream
+     *              is interrupted and not resumable we'd want to do this. If we want to
+     *              process the next message in stream, we do not.
+     * losing any
      * partially accumulated SessionMessage. Call this if the incoming data stream is interrupted
      * and not expected to be immediately resumed.
      * e.g: the source of incoming data becomes unavailable.
      */
-    public void reset() {
+    public void reset(boolean clear) {
         gotVersion      = false;
         gotHeaderLength = false;
         gotHeader       = false;
@@ -99,26 +105,31 @@ public class SessionMessageDeserializer {
         bodyLength        = 0;
         bodyBytesReceived = 0;
 
-        buffer.clear();
+        if (clear) {
+            bufferOffset  = 0;
+            buffer.clear();
 
-        bodyFile = null;
+            bodyFile = null;
 
-        if (bodyStream != null) {
-            try { bodyStream.close(); } catch (IOException e) { e.printStackTrace(); }
-            bodyStream = null;
+            if (bodyStream != null) {
+                try {
+                    bodyStream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                bodyStream = null;
+            }
         }
     }
 
     /**
      * Process sequential chunk of a serialized {@link pro.dbro.airshare.session.SessionMessage}
      *
-     * This method will call {@link #reset()} internally if data provided completes a SessionMessage.
+     * This method will call {@link #reset(boolean)} internally if data provided completes a SessionMessage.
      *
      * @param data sequential chunk of a serialized {@link pro.dbro.airshare.session.SessionMessage}
      */
     public void dataReceived(byte[] data) {
-        int dataBytesProcessed = 0;
-
         if (data.length > buffer.capacity() - buffer.position())
             resizeBuffer(data.length);
 
@@ -128,7 +139,7 @@ public class SessionMessageDeserializer {
              * or call to {@link #reset()}) indicates we are still receiving the SessionMessage prefix
              * or header. If accumulated bytes received indicates we are receiving body, write to body OutputStream
              */
-            if (gotHeaderLength && buffer.position() >= getPrefixAndHeaderLengthBytes()) {
+            if (gotHeaderLength && getMessageIndex() >= getPrefixAndHeaderLengthBytes()) {
 
                 if (bodyLength > BODY_SIZE_CUTOFF_BYTES) {
 
@@ -151,15 +162,31 @@ public class SessionMessageDeserializer {
             Timber.e(e, "Failed to write data to body outputStream");
         }
 
+        processData(data.length);
+
+        Timber.d("dataReceived complete with offset " + bufferOffset);
+//        else if (!gotBody && gotHeader) {
+//            Timber.d(String.format("Read %d / %d body bytes", bodyBytesReceived, bodyLength));
+//        }
+
+    }
+
+    /** @return the current index into the message currently being deserialized */
+    private int getMessageIndex() {
+        return buffer.position() - bufferOffset;
+    }
+
+    private void processData(int bytesJustReceived) {
+        int dataBytesProcessed = 0;
 
         /** Deserialize SessionMessage Header version byte, if not yet done since construction
          * or last call to {@link #reset()}
          */
-        if (!gotVersion && buffer.position() >= SessionMessage.HEADER_VERSION_BYTES) {
+        if (!gotVersion && getMessageIndex() >= SessionMessage.HEADER_VERSION_BYTES) {
             // Get version int from first byte
             // Check we can deserialize this version
-            int version = new BigInteger(new byte[] { buffer.get(0) }).intValue();
-            Timber.d("Deserialized header version " + version);
+            int version = new BigInteger(new byte[]{buffer.get(bufferOffset)}).intValue();
+            Timber.d("Deserialized header version %d at idx %d", version, bufferOffset);
             if (version != SessionMessage.CURRENT_HEADER_VERSION) {
                 Timber.e("Unknown SessionMessage version");
                 if (callback != null)
@@ -173,13 +200,13 @@ public class SessionMessageDeserializer {
         /** Deserialize SessionMessage Header length bytes, if not yet done since construction
          * or last call to {@link #reset()}
          */
-        if (!gotHeaderLength && buffer.position() >= SessionMessage.HEADER_VERSION_BYTES +
+        if (!gotHeaderLength && getMessageIndex() >= SessionMessage.HEADER_VERSION_BYTES +
                                                      SessionMessage.HEADER_LENGTH_BYTES) {
 
             // Get header length and store. Deserialize header when possible
             byte[] headerLengthBytes = new byte[SessionMessage.HEADER_LENGTH_BYTES];
             int originalPosition = buffer.position();
-            buffer.position(dataBytesProcessed);
+            buffer.position(bufferOffset + dataBytesProcessed);
             buffer.get(headerLengthBytes, 0, headerLengthBytes.length);
             buffer.position(originalPosition);
 
@@ -196,11 +223,11 @@ public class SessionMessageDeserializer {
         /** Deserialize SessionMessage Header content, if not yet done since construction
          * or last call to {@link #reset()}
          */
-        if (!gotHeader && gotHeaderLength && buffer.position() >= getPrefixAndHeaderLengthBytes()) {
+        if (!gotHeader && gotHeaderLength && getMessageIndex() >= getPrefixAndHeaderLengthBytes()) {
 
             byte[] headerString = new byte[headerLength];
             int originalBufferPosition = buffer.position();
-            buffer.position(SessionMessage.HEADER_VERSION_BYTES + SessionMessage.HEADER_LENGTH_BYTES);
+            buffer.position(bufferOffset + SessionMessage.HEADER_VERSION_BYTES + SessionMessage.HEADER_LENGTH_BYTES);
             buffer.get(headerString, 0, headerLength);
             buffer.position(originalBufferPosition);
 
@@ -231,12 +258,12 @@ public class SessionMessageDeserializer {
          * Performed at most once per SessionMessage
          */
         if (!gotBodyBoundary &&
-            gotHeader        &&
-            bodyLength > 0   &&
-            buffer.position() >= getPrefixAndHeaderLengthBytes()) {
+                gotHeader &&
+                bodyLength > 0 &&
+                getMessageIndex() >= getPrefixAndHeaderLengthBytes()) {
 
             try {
-                int bodyBytesJustReceived = data.length - dataBytesProcessed;
+                int bodyBytesJustReceived = bytesJustReceived - dataBytesProcessed;
 
                 if (bodyLength > BODY_SIZE_CUTOFF_BYTES) {
 
@@ -275,12 +302,15 @@ public class SessionMessageDeserializer {
                 }
             } else {
                 byte[] body = new byte[bodyLength];
-                buffer.position(getPrefixAndHeaderLengthBytes());
+                int originalPos = buffer.position();
+                buffer.position(bufferOffset + getPrefixAndHeaderLengthBytes());
                 buffer.get(body, 0, bodyLength);
+                buffer.position(originalPos);
 
                 if (sessionMessage instanceof DataTransferMessage) {
                     ((DataTransferMessage) sessionMessage).setBody(body);
                 }
+                dataBytesProcessed += bodyLength;
             }
 
             if (callback != null) callback.onComplete(this, sessionMessage, null);
@@ -288,11 +318,14 @@ public class SessionMessageDeserializer {
             gotBody = true;
 
             // Prepare for next incoming message
-            reset();
+            bufferOffset += (getPrefixAndHeaderLengthBytes() + bodyLength); // The next message begins at this offset. We can't simply use dataBytesProcessed because this message may have been processed over prior calls to this method
+            Timber.d("Message complete. Buffer offset %d, dataBytes processed %d", bufferOffset, dataBytesProcessed);
+            reset(false);
+            if (dataBytesProcessed < bytesJustReceived) {
+                Timber.d("%d / %d bytes deserialized in complete msg. Proceeding to next msg", dataBytesProcessed, bytesJustReceived);
+                processData(bytesJustReceived - dataBytesProcessed);
+            }
         }
-//        else if (!gotBody && gotHeader) {
-//            Timber.d(String.format("Read %d / %d body bytes", bodyBytesReceived, bodyLength));
-//        }
     }
 
     private void init() {
@@ -300,11 +333,15 @@ public class SessionMessageDeserializer {
     }
 
     private void resizeBuffer(int minLength) {
-        ByteBuffer newBuffer = ByteBuffer.allocate(Math.max(minLength, (int) (buffer.capacity() * 1.5)));
+        int curLen = buffer.capacity();
+        int curOccupied = buffer.position();
+        int newLen = Math.max(minLength, (int) (curLen * 1.5));
+        ByteBuffer newBuffer = ByteBuffer.allocate(newLen);
         buffer.limit(buffer.position());
         buffer.position(0);
         newBuffer.put(buffer);
         buffer = newBuffer;
+        Timber.d("Buffer resized from %d (%d used) to %d. %d bytes avail", curLen, curOccupied, newLen, buffer.capacity() - buffer.position());
     }
 
     private void prepareBodyOutputStream() {

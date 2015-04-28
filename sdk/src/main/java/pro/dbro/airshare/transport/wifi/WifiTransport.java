@@ -47,7 +47,7 @@ import timber.log.Timber;
  */
 public class WifiTransport extends Transport implements WifiP2pManager.ConnectionInfoListener, WifiP2pManager.ChannelListener {
 
-    private static final boolean VERBOSE = false;
+    private static final boolean VERBOSE = true;
 
     /** Values to id transport useful in bit fields */
     public static final int TRANSPORT_CODE = 2;
@@ -157,7 +157,17 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
             socketThread.interrupt();
 
         if (discoveringPeers)
-            manager.stopPeerDiscovery(channel, null);
+            manager.stopPeerDiscovery(channel, new WifiP2pManager.ActionListener() {
+                @Override
+                public void onSuccess() {
+                    Timber.d("Stopped peer discovery");
+                }
+
+                @Override
+                public void onFailure(int reason) {
+                    Timber.w("Failed to stop peer discovery");
+                }
+            });
 
         manager.cancelConnect(channel, null);
         manager.removeGroup(channel, null);
@@ -529,12 +539,12 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
     private void maintainSocket(@Nullable ServerSocket serverSocket, Socket socket, String remoteAddress) {
         try {
             connectionDesired = true;
-            socket.setSoTimeout(500);
+            socket.setSoTimeout(50);
 
             InputStream inputStream = socket.getInputStream();
             OutputStream outputStream = socket.getOutputStream();
 
-            byte[] buf = new byte[1024];
+            byte[] buf = new byte[DEFAULT_MTU_BYTES];
             int len;
 
             while (connectionDesired) {
