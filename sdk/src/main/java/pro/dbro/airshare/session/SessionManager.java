@@ -348,9 +348,9 @@ public class SessionManager implements Transport.TransportCallback,
                         // Process completely sent AirShare messages, pass non-AirShare messages
                         // up via messageSentToPeer
                         if (message.equals(localIdentityMessage)) {
-                            Timber.d("Reporting peer connected after last id sent");
 
                             if (peerIdentifiers.get(recipient).size() == 1) {
+                                Timber.d("Reporting peer connected after last id sent");
                                 callback.peerStatusUpdated(recipient,
                                                            Transport.ConnectionStatus.CONNECTED,
                                                            hostIdentifiers.contains(identifier));
@@ -431,21 +431,24 @@ public class SessionManager implements Transport.TransportCallback,
             case DISCONNECTED:
                 if (isHost) hostIdentifiers.remove(identifier);
 
-                Timber.d("Disconnected from %s", identifier);
                 Peer peer = identifiedPeers.get(identifier);
 
                 if (peer != null) {
 
+                    peerTransports.get(peer).remove(transport);
                     Set<String> identifiers = peerIdentifiers.get(peer);
                     identifiers.remove(identifier);
 
                     // If all transports for this peer are disconnected, send disconnect
                     if (identifiers.size() == 0) {
+                        Timber.d("Disconnected from %s", peer.getAlias());
+
                         callback.peerStatusUpdated(identifiedPeers.get(identifier),
                                 Transport.ConnectionStatus.DISCONNECTED,
                                 isHost);
 
                     } else if (identifiers.size() > 0) {
+                        Timber.d("Transport disconnected from %s. %d others remain", peer.getAlias(), identifiers.size());
                         // One of the peers' identifiers disconnected.
                         // If it was a supplementary transport, we should report the base transport
                         // as active
@@ -462,8 +465,7 @@ public class SessionManager implements Transport.TransportCallback,
                 } else
                     Timber.w("Could not report disconnection, peer not identified");
 
-                if (!identifiedPeers.containsKey(identifier))
-
+                identifierTransports.remove(identifier);
                 identifyingPeers.remove(identifier);
                 identifiedPeers.remove(identifier);
                 identifierSenders.remove(identifier);
@@ -522,7 +524,9 @@ public class SessionManager implements Transport.TransportCallback,
                     registerTransportForPeer(identifierTransport, peer);
 
                     if (newIdentity) {
-                        Timber.d("Received identity for %s. %s", senderIdentifier, sentIdentityToSender ? "" : "Responding with own.");
+                        Timber.d("Received #%s identity for %s. %s", String.valueOf(peerIdentifiers.get(peer).size()),
+                                                                     senderIdentifier,
+                                                                     sentIdentityToSender ? "" : "Responding with own.");
                         // As far as upper layers are concerned, connection events occur when the remote
                         // peer is identified.
                         if (!sentIdentityToSender)
@@ -530,6 +534,13 @@ public class SessionManager implements Transport.TransportCallback,
                         else if (peerIdentifiers.get(peer).size() == 1) // If peer is already connected via another transport, don't re-notify
                             callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED, hostIdentifiers.contains(senderIdentifier));
                     }
+
+                    // TESTING : Stop base transport when upgrade successful
+                    if (peerIdentifiers.get(peer).size() > 1) {
+                        Transport baseTransport = transports.first();
+                        baseTransport.stop();
+                    }
+
 
                 } else if (message instanceof TransportUpgradeMessage) {
                     Peer peer = identifiedPeers.get(senderIdentifier);
