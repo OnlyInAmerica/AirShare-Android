@@ -395,8 +395,8 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                     Timber.d("Local device status %s", getDescriptionForDeviceStatus(device.status));
                     if (device.status == WifiP2pDevice.CONNECTED) {
                         if (discoveringPeers) {
-                            Timber.d("Requesting connection info with %s", device.deviceAddress);
-                            manager.requestConnectionInfo(channel, WifiTransport.this);
+//                            Timber.d("Requesting connection info with %s", device.deviceAddress);
+//                            manager.requestConnectionInfo(channel, WifiTransport.this);
                         } else {
                             Timber.d("Connection was not requested. Cancelling");
                             cancelConnections();
@@ -447,6 +447,12 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
     @Override
     public void onConnectionInfoAvailable(WifiP2pInfo info) {
         Timber.d("Got Connection Info");
+
+        if (socketThread != null) {
+            Timber.w("SocketThread already set. Will not act on connection info");
+            return;
+        }
+
         // After a connection we request connection info
         if (info.groupFormed && info.isGroupOwner) {
             Timber.d("This device is the host (group owner)");
@@ -482,9 +488,6 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
     }
 
     public void startClientSocket(final InetAddress address) {
-        if (socketThread != null) {
-            Timber.e("SocketThread already set");
-        }
         socketThread = new Thread(new Runnable() {
 
             @Override
@@ -511,9 +514,6 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
     }
 
     public void startServerSocket() {
-        if (socketThread != null) {
-            Timber.e("SocketThread already set");
-        }
         socketThread = new Thread(new Runnable() {
             @Override
             public void run() {
