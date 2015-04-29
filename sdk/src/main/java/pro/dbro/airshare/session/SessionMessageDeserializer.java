@@ -149,7 +149,7 @@ public class SessionMessageDeserializer {
                 } else
                     buffer.put(data);
 
-                bodyBytesReceived += data.length;
+                bodyBytesReceived += Math.min(bodyLength - bodyBytesReceived, data.length);
 
                 if (callback != null && bodyLength > 0)
                     callback.onBodyProgress(this, sessionMessage, bodyBytesReceived / (float) bodyLength);
@@ -164,10 +164,10 @@ public class SessionMessageDeserializer {
 
         processData(data.length);
 
-        Timber.d("dataReceived complete with offset " + bufferOffset);
-//        else if (!gotBody && gotHeader) {
-//            Timber.d(String.format("Read %d / %d body bytes", bodyBytesReceived, bodyLength));
-//        }
+
+        if (!gotBody && gotHeader) {
+            Timber.d(String.format("Read %d / %d body bytes", bodyBytesReceived, bodyLength));
+        }
 
     }
 
@@ -177,6 +177,7 @@ public class SessionMessageDeserializer {
     }
 
     private void processData(int bytesJustReceived) {
+        Timber.d("Received %d bytes", bytesJustReceived);
         int dataBytesProcessed = 0;
 
         /** Deserialize SessionMessage Header version byte, if not yet done since construction
