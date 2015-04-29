@@ -467,7 +467,6 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                 // We can associate the MAC address we initially discovered
                 // with the IP address now available
                 String mac = connectingPeers.iterator().next();
-                connectedPeers.add(info.groupOwnerAddress.getHostAddress());
                 macToIpAddress.put(mac, info.groupOwnerAddress.getHostAddress());
                 Timber.d("associated %s with %s", mac,
                         info.groupOwnerAddress.getHostAddress());
@@ -501,6 +500,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                     cancelPeerDiscoveryTimer();
 
                     Timber.d("Client connected to %s", address.getHostAddress());
+                    connectedPeers.add(address.getHostAddress());
                     callback.get().identifierUpdated(WifiTransport.this, address.getHostAddress(), ConnectionStatus.CONNECTED, true, null);
 
                     maintainSocket(null, socket, address.getHostAddress());
