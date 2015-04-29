@@ -79,6 +79,7 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
+        serviceBound = false; // onServiceDisconnected may not be called before fragment destroyed
     }
 
     @Override
@@ -110,6 +111,7 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
     public void onStop() {
         super.onStop();
         if (serviceBound && !didIssueServiceUnbind) {
+            Timber.d("Unbinding service. %s", shouldServiceContinueInBackground() ? "service will continue in bg" : "service will be closed");
             didIssueServiceUnbind = true;
             unBindService();
             unregisterBroadcastReceiver();
