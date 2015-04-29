@@ -188,10 +188,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
                                   Map<String, Object> extraInfo) {
 
         Timber.d("%s status: %s", identifier, status.toString());
-        // Only the Central device should report new connection
-        // Peripheral will only report disconnection events
-        if (callback.get() != null &&
-            (status == ConnectionStatus.DISCONNECTED || deviceType == DeviceType.CENTRAL)) {
+        if (callback.get() != null) {
 
                 callback.get().identifierUpdated(this,
                                                  identifier,

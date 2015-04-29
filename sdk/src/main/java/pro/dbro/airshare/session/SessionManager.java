@@ -30,7 +30,7 @@ public class SessionManager implements Transport.TransportCallback,
                                        SessionMessageDeserializer.SessionMessageDeserializerCallback,
                                        SessionMessageScheduler {
 
-    private static final boolean VERBOSE = false;
+    private static final boolean VERBOSE = true;
 
     public interface SessionManagerCallback {
 
@@ -283,7 +283,8 @@ public class SessionManager implements Transport.TransportCallback,
 
                 Timber.d("Established upgraded transport connection with %s", peer.getAlias());
                 peerUpgradeRequests.remove(peer);
-                callback.peerTransportUpdated(peer, transport, null);
+                // Important: client must call callback.peerTransportUpdated(peer, transport, null);
+                // when appropriate
             }
         }
     }
@@ -389,16 +390,17 @@ public class SessionManager implements Transport.TransportCallback,
     public void identifierUpdated(Transport transport,
                                   String identifier,
                                   Transport.ConnectionStatus status,
-                                  boolean isHost,
+                                  boolean peerIsHost,
                                   Map<String, Object> extraInfo) {
         switch(status) {
             case CONNECTED:
                 Timber.d("Connected to %s", identifier);
-                if (isHost) hostIdentifiers.add(identifier);
+                if (peerIsHost) hostIdentifiers.add(identifier);
 
-                if (shouldIdentifyPeer(identifier)) {
+                // Only one peer (client) needs to initiate identification
+                if (peerIsHost && shouldIdentifyPeer(identifier)) {
+                    Timber.d("Queuing identity to %s", identifier);
                     if (!identifierSenders.containsKey(identifier)) {
-                        Timber.d("Queuing identity to %s", identifier);
                         identifierSenders.put(identifier, new SessionMessageSerializer(localIdentityMessage));
                     } else
                         Timber.w("Outgoing messages already exist for unidentified peer %s", identifier);
@@ -409,7 +411,7 @@ public class SessionManager implements Transport.TransportCallback,
                 // Send outgoing messages to peer
                 SessionMessageSerializer sender = identifierSenders.get(identifier);
 
-                if (sender.getCurrentMessage() != null) {
+                if (sender != null && sender.getCurrentMessage() != null) {
 
                     boolean sendingIdentity = sender.getCurrentMessage() instanceof IdentityMessage;
 
@@ -429,11 +431,16 @@ public class SessionManager implements Transport.TransportCallback,
                 break;
 
             case DISCONNECTED:
-                if (isHost) hostIdentifiers.remove(identifier);
+                if (peerIsHost) hostIdentifiers.remove(identifier);
 
                 Peer peer = identifiedPeers.get(identifier);
 
                 if (peer != null) {
+
+                    Timber.d("Disconnected from %s (%s). Had %d transports",
+                            identifier,
+                            peer.getAlias(),
+                            peerIdentifiers.get(peer).size());
 
                     peerTransports.get(peer).remove(transport);
                     Set<String> identifiers = peerIdentifiers.get(peer);
@@ -445,7 +452,7 @@ public class SessionManager implements Transport.TransportCallback,
 
                         callback.peerStatusUpdated(identifiedPeers.get(identifier),
                                 Transport.ConnectionStatus.DISCONNECTED,
-                                isHost);
+                                peerIsHost);
 
                     } else if (identifiers.size() > 0) {
                         Timber.d("Transport disconnected from %s. %d others remain", peer.getAlias(), identifiers.size());
@@ -521,11 +528,12 @@ public class SessionManager implements Transport.TransportCallback,
                     identifiedPeers.put(senderIdentifier, peer);
 
                     Transport identifierTransport = identifierTransports.get(senderIdentifier);
+                    boolean newTransport = peerTransports.get(peer) == null || !peerTransports.get(peer).contains(identifierTransport);
                     registerTransportForPeer(identifierTransport, peer);
 
                     if (newIdentity) {
-                        Timber.d("Received #%s identity for %s. %s", String.valueOf(peerIdentifiers.get(peer).size()),
-                                                                     senderIdentifier,
+                        Timber.d("Received #%s identifier for %s. %s", String.valueOf(peerIdentifiers.get(peer).size()),
+                                                                     peer.getAlias(),
                                                                      sentIdentityToSender ? "" : "Responding with own.");
                         // As far as upper layers are concerned, connection events occur when the remote
                         // peer is identified.
@@ -535,12 +543,15 @@ public class SessionManager implements Transport.TransportCallback,
                             callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED, hostIdentifiers.contains(senderIdentifier));
                     }
 
-                    // TESTING : Stop base transport when upgrade successful
-                    if (peerIdentifiers.get(peer).size() > 1) {
+                    // We must notify client of new transport *after* sending identity, if necessary. Else they might queue data ahead of it
+                    if (newTransport && peerIdentifiers.get(peer).size() > 1) {
+                        callback.peerTransportUpdated(peer, identifierTransport, null);
+
+                        // TESTING : Stop base transport when upgrade successful
+                        Timber.d("Stopping base transport. %d identifiers for peer", peerIdentifiers.get(peer).size());
                         Transport baseTransport = transports.first();
                         baseTransport.stop();
                     }
-
 
                 } else if (message instanceof TransportUpgradeMessage) {
                     Peer peer = identifiedPeers.get(senderIdentifier);
