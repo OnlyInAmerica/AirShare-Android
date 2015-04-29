@@ -173,8 +173,10 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                 }
             });
 
-        manager.cancelConnect(channel, null);
-        manager.removeGroup(channel, null);
+        if (channel != null) {
+            manager.cancelConnect(channel, null);
+            manager.removeGroup(channel, null);
+        }
 
         connectedPeers.clear();
         connectingPeers.clear();
@@ -480,6 +482,9 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
     }
 
     public void startClientSocket(final InetAddress address) {
+        if (socketThread != null) {
+            Timber.e("SocketThread already set");
+        }
         socketThread = new Thread(new Runnable() {
 
             @Override
@@ -506,6 +511,9 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
     }
 
     public void startServerSocket() {
+        if (socketThread != null) {
+            Timber.e("SocketThread already set");
+        }
         socketThread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -594,7 +602,6 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
                 callback.get().identifierUpdated(this, remoteAddress, ConnectionStatus.DISCONNECTED, !localPrefersToHost, null);
         } catch (IOException e) {
             Timber.e(e, "Maintain socket exception");
-            e.printStackTrace();
         }
     }
 
