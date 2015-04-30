@@ -55,7 +55,7 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
     public static final int DEFAULT_MTU_BYTES = 1024;
 
     private static final int PORT = 8787;
-    private static final int SOCKET_TIMEOUT_MS = 3000;
+    private static final int SOCKET_TIMEOUT_MS = 5000;
 
     private Context context;
     private WifiP2pManager manager;
@@ -157,8 +157,9 @@ public class WifiTransport extends Transport implements WifiP2pManager.Connectio
             receiverRegistered = false;
         }
         connectionDesired = false;
-        if (socketThread != null)
-            socketThread.interrupt();
+        if (socketThread != null) {
+            socketThread = null;
+        }
 
         if (discoveringPeers)
             manager.stopPeerDiscovery(channel, new WifiP2pManager.ActionListener() {
