@@ -253,7 +253,7 @@ public class SessionManager implements Transport.TransportCallback,
 
     private @Nullable Transport getPreferredTransportForPeer(Peer peer) {
 
-        if (!peerTransports.containsKey(peer))
+        if (!peerTransports.containsKey(peer) || peerTransports.get(peer).size() == 0)
                 return null;
 
         // Return the Transport with the highest value (largest MTU)
