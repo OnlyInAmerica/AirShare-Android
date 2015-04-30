@@ -105,7 +105,7 @@ public class SessionManager implements Transport.TransportCallback,
      */
     // TODO : This  method needs to be re-evaluated to be more robust
     // If preferred transport not available, queue on base transport?
-    public void sendMessage(SessionMessage message, Peer recipient) {
+    public synchronized void sendMessage(SessionMessage message, Peer recipient) {
 
         Set<String> recipientIdentifiers = peerIdentifiers.get(recipient);
         String targetRecipientIdentifier = null;
@@ -160,7 +160,7 @@ public class SessionManager implements Transport.TransportCallback,
         reset();
     }
 
-    public void requestTransportUpgrade(Peer remotePeer) {
+    public synchronized void requestTransportUpgrade(Peer remotePeer) {
         Timber.d("Transport upgrade with %s requested", remotePeer.getAlias());
         Transport supplementalTransport = null;
 
@@ -184,14 +184,38 @@ public class SessionManager implements Transport.TransportCallback,
             upgradeTransport(remotePeer, supplementalTransport.getTransportCode());
             sendMessage(new TransportUpgradeMessage(supplementalTransport.getTransportCode()), remotePeer);
         } else {
-            Timber.w("Transport upgrade could not proceed. No suitable transport found");
+            String message = "Transport upgrade could not proceed. No suitable transport found";
+            Timber.w(message);
+            callback.peerTransportUpdated(remotePeer, -1, new UnsupportedOperationException(message));
         }
     }
 
-    /** Get the current preferred available transport for the given peer
-     *  This is generally the available transport with the highest bandwidth
+    /**
+     * Stop all supplementary transports and, if necessary, resume the base transport
+     */
+    public synchronized void downgradeTransport() {
+        Iterator<Transport> transportIterator = transports.iterator();
+        Transport baseTransport = transportIterator.next();
+
+        while (transportIterator.hasNext())
+            transportIterator.next().stop();
+
+        if (baseTransportState.isStopped) {
+            Timber.d("Resuming base transport");
+            baseTransportState = new TransportState(false,
+                    baseTransportState.wasAdvertising,
+                    baseTransportState.wasScanning);
+
+            if (baseTransportState.wasAdvertising) baseTransport.advertise();
+            if (baseTransportState.wasScanning) baseTransport.scanForPeers();
+        }
+    }
+
+    /**
+     * Get the current preferred available transport for the given peer
+     * This is generally the available transport with the highest bandwidth
      *
-     *  @return either {@link pro.dbro.airshare.transport.wifi.WifiTransport#TRANSPORT_CODE}
+     * @return either {@link pro.dbro.airshare.transport.wifi.WifiTransport#TRANSPORT_CODE}
      *                 or {@link pro.dbro.airshare.transport.ble.BLETransport#TRANSPORT_CODE},
      *                 or -1 if none available.
      */
@@ -463,16 +487,6 @@ public class SessionManager implements Transport.TransportCallback,
                         callback.peerStatusUpdated(identifiedPeers.get(identifier),
                                 Transport.ConnectionStatus.DISCONNECTED,
                                 peerIsHost);
-
-                        if (baseTransportState.isStopped) {
-                            Transport baseTransport = transports.first();
-                            baseTransportState = new TransportState(false,
-                                                                    baseTransportState.wasAdvertising,
-                                                                    baseTransportState.wasScanning);
-
-                            if (baseTransportState.wasAdvertising) baseTransport.advertise();
-                            if (baseTransportState.wasScanning) baseTransport.scanForPeers();
-                        }
 
                     } else if (identifiers.size() > 0) {
                         Timber.d("Transport disconnected from %s. %d others remain", peer.getAlias(), identifiers.size());

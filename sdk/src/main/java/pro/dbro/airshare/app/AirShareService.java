@@ -148,8 +148,20 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         }
 
         /**
-         * Request a transport upgrade with the remote peer. At this time the only available
-         * supplementary transport is {@link pro.dbro.airshare.transport.wifi.WifiTransport}
+         * Request a higher-bandwidth transport be established with the remote peer.
+         * Notification of the result of this call is reported by
+         * {@link pro.dbro.airshare.app.AirShareService.Callback#onPeerTransportUpdated(pro.dbro.airshare.session.Peer, int, Exception)}
+         *
+         * You can check that a peer supports an additional transport via
+         * {@link Peer#supportsTransport(int)} using a transport code such as
+         * {@link pro.dbro.airshare.transport.wifi.WifiTransport#TRANSPORT_CODE}
+         *
+         * When an upgraded transport is established,
+         * it may require the base transport, currently {@link pro.dbro.airshare.transport.ble.BLETransport},
+         * be suspended to prevent interference.
+         *
+         * At this time the only available supplementary transport is
+         * {@link pro.dbro.airshare.transport.wifi.WifiTransport}
          * which requires the host application add the following permissions:
          *
          * <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -157,9 +169,20 @@ public class AirShareService extends Service implements ActivityRecevingMessages
          * <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
          * <uses-permission android:name="android.permission.INTERNET" />
          * <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+         *
+         * Note that upgrade transports, such as WiFi, consume considerably more power
+         * and should be downgraded as soon as possible via {@link #downgradeTransport()}
          */
         public void requestTransportUpgrade(Peer remotePeer) {
             sessionManager.requestTransportUpgrade(remotePeer);
+        }
+
+        /**
+         * Stops supplementary transports and returns to exclusive use of the base transport.
+         * Currently this is {@link pro.dbro.airshare.transport.ble.BLETransport}
+         */
+        public void downgradeTransport() {
+            sessionManager.downgradeTransport();
         }
 
         /** Get the current preferred available transport for the given peer
