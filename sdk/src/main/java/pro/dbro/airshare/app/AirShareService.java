@@ -44,7 +44,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
 
         public void onPeerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean peerIsHost);
 
-        public void peerTransportUpdated(@NonNull Peer peer, @Nullable Transport newTransport, @Nullable Exception exception);
+        public void peerTransportUpdated(@NonNull Peer peer, int newTransportCode, @Nullable Exception exception);
 
     }
 
@@ -160,6 +160,17 @@ public class AirShareService extends Service implements ActivityRecevingMessages
          */
         public void requestTransportUpgrade(Peer remotePeer) {
             sessionManager.requestTransportUpgrade(remotePeer);
+        }
+
+        /** Get the current preferred available transport for the given peer
+         *  This is generally the available transport with the highest bandwidth
+         *
+         *  @return either {@link pro.dbro.airshare.transport.wifi.WifiTransport#TRANSPORT_CODE}
+         *                 or {@link pro.dbro.airshare.transport.ble.BLETransport#TRANSPORT_CODE},
+         *                 or -1 if none available.
+         */
+        public int getTransportCodeForPeer(Peer remotePeer) {
+            return sessionManager.getTransportCodeForPeer(remotePeer);
         }
 
         /**
@@ -347,11 +358,11 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     }
 
     @Override
-    public void peerTransportUpdated(@NonNull final Peer peer, @Nullable final Transport newTransport, @Nullable final Exception exception) {
+    public void peerTransportUpdated(@NonNull final Peer peer, final int newTransportCode, @Nullable final Exception exception) {
         foregroundHandler.post(new Runnable() {
             @Override
             public void run() {
-                if (callback != null) callback.peerTransportUpdated(peer, newTransport, exception);
+                if (callback != null) callback.peerTransportUpdated(peer, newTransportCode, exception);
             }
         });
     }

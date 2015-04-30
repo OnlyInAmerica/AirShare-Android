@@ -37,7 +37,7 @@ public class SessionManager implements Transport.TransportCallback,
 
         public void peerStatusUpdated(@NonNull Peer peer, @NonNull Transport.ConnectionStatus newStatus, boolean isHost);
 
-        public void peerTransportUpdated(@NonNull Peer peer, @Nullable Transport newTransport, @Nullable Exception exception);
+        public void peerTransportUpdated(@NonNull Peer peer, int newTransportCode, @Nullable Exception exception);
 
         public void messageReceivingFromPeer(@NonNull SessionMessage message, @NonNull Peer recipient, float progress);
 
@@ -189,6 +189,10 @@ public class SessionManager implements Transport.TransportCallback,
         }
     }
 
+    public int getTransportCodeForPeer(Peer peer) {
+        return getPreferredTransportForPeer(peer).getTransportCode();
+    }
+
     // </editor-fold desc="Public API">
 
     // <editor-fold desc="Private API">
@@ -232,7 +236,7 @@ public class SessionManager implements Transport.TransportCallback,
 
         if (requestedTransport == null) {
             Timber.d("Cannot find requested transport %d. Ignoring request", transportCode);
-            callback.peerTransportUpdated(remotePeer, null, new UnsupportedOperationException(String.format("Device does not support requested transport with code %d", transportCode)));
+            callback.peerTransportUpdated(remotePeer, -1, new UnsupportedOperationException(String.format("Device does not support requested transport with code %d", transportCode)));
             return;
         }
 
@@ -472,7 +476,7 @@ public class SessionManager implements Transport.TransportCallback,
                         // identifiers for this peer. In this case, we should crash because it's the fault
                         // of this code
                         if (remainingTransport instanceof BLETransport) {
-                            callback.peerTransportUpdated(peer, remainingTransport, null);
+                            callback.peerTransportUpdated(peer, remainingTransport.getTransportCode(), null);
                         }
 
                     }
@@ -551,7 +555,7 @@ public class SessionManager implements Transport.TransportCallback,
 
                 // We must notify client of new transport *after* sending identity, if necessary. Else they might queue data ahead of it
                 if (newTransport && peerIdentifiers.get(peer).size() > 1) {
-                    callback.peerTransportUpdated(peer, identifierTransport, null);
+                    callback.peerTransportUpdated(peer, identifierTransport.getTransportCode(), null);
 
                     // TESTING : Stop base transport when upgrade successful
                     Timber.d("Stopping base transport. %d identifiers for peer", peerIdentifiers.get(peer).size());
