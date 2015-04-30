@@ -163,10 +163,9 @@ public class SessionManager implements Transport.TransportCallback,
     public void requestTransportUpgrade(Peer remotePeer) {
         Timber.d("Transport upgrade with %s requested", remotePeer.getAlias());
         Transport supplementalTransport = null;
-        Iterator<Transport> transports = this.transports.iterator();
 
-        while (transports.hasNext()) {
-            supplementalTransport = transports.next();
+        for (Transport transport : transports) {
+            supplementalTransport = transport;
 
             if (!remotePeer.supportsTransport(supplementalTransport.getTransportCode())) {
                 Timber.d("Peer does not support supplementary transport code %d", supplementalTransport.getTransportCode());
@@ -189,8 +188,17 @@ public class SessionManager implements Transport.TransportCallback,
         }
     }
 
+    /** Get the current preferred available transport for the given peer
+     *  This is generally the available transport with the highest bandwidth
+     *
+     *  @return either {@link pro.dbro.airshare.transport.wifi.WifiTransport#TRANSPORT_CODE}
+     *                 or {@link pro.dbro.airshare.transport.ble.BLETransport#TRANSPORT_CODE},
+     *                 or -1 if none available.
+     */
     public int getTransportCodeForPeer(Peer peer) {
-        return getPreferredTransportForPeer(peer).getTransportCode();
+        Transport preferredTransport = getPreferredTransportForPeer(peer);
+        return preferredTransport != null ? preferredTransport.getTransportCode() :
+                                            -1;
     }
 
     // </editor-fold desc="Public API">
@@ -288,7 +296,7 @@ public class SessionManager implements Transport.TransportCallback,
 
                 Timber.d("Established upgraded transport connection with %s", peer.getAlias());
                 peerUpgradeRequests.remove(peer);
-                // Important: client must call callback.peerTransportUpdated(peer, transport, null);
+                // Important: client must call callback.onPeerTransportUpdated(peer, transport, null);
                 // when appropriate
             }
         }

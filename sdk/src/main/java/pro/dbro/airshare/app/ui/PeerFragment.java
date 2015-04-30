@@ -264,7 +264,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
     }
 
     @Override
-    public void peerTransportUpdated(@NonNull Peer peer, int newTransportCode, @Nullable Exception exception) {
+    public void onPeerTransportUpdated(@NonNull Peer peer, int newTransportCode, @Nullable Exception exception) {
         // do nothing for now
     }
 
