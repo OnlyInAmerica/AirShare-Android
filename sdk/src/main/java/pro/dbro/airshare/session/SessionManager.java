@@ -64,8 +64,6 @@ public class SessionManager implements Transport.TransportCallback,
     private Set<String>                               hostIdentifiers            = new HashSet<>();
     private HashMap<Peer, Transport>                  peerUpgradeRequests        = new HashMap<>();
 
-    private final Object lock = new Object();
-
     // <editor-fold desc="Public API">
 
     public SessionManager(Context context,
@@ -294,7 +292,7 @@ public class SessionManager implements Transport.TransportCallback,
     // <editor-fold desc="TransportCallback">
 
     @Override
-    public void dataReceivedFromIdentifier(Transport transport, byte[] data, String identifier) {
+    public synchronized void dataReceivedFromIdentifier(Transport transport, byte[] data, String identifier) {
 
         // An asymmetric transport may not receive connection events
         // so we use this opportunity to associate the identifier with its transport
@@ -308,86 +306,83 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     @Override
-    public void dataSentToIdentifier(Transport transport, byte[] data, String identifier, Exception exception) {
+    public synchronized void dataSentToIdentifier(Transport transport, byte[] data, String identifier, Exception exception) {
 
-        synchronized (lock) {
+        if (exception != null) {
+            Timber.w("Data failed to send to %s", identifier);
+            return;
+        }
 
-            if (exception != null) {
-                Timber.w("Data failed to send to %s", identifier);
-                return;
+        SessionMessageSerializer sender = identifierSenders.get(identifier);
+
+        if (sender == null) {
+            Timber.w("No sender for dataSentToIdentifier to %s", identifier);
+            return;
+        }
+
+        Pair<SessionMessage, Float> messagePair = sender.ackChunkDelivery();
+
+        if (messagePair != null) {
+
+            SessionMessage message = messagePair.first;
+            float progress = messagePair.second;
+
+            if (VERBOSE) Timber.d("%d %s bytes (%.0f pct) sent to %s",
+                                  data.length,
+                                  message.getType(),
+                                  progress * 100,
+                                  identifier);
+
+            if (progress == 1 && message.equals(localIdentityMessage)) {
+                Timber.d("Local identity acknowledged by recipient");
+                identifyingPeers.add(identifier);
             }
 
-            SessionMessageSerializer sender = identifierSenders.get(identifier);
+            Peer recipient = identifiedPeers.get(identifier);
+            if (recipient != null) {
+                if (progress == 1) {
 
-            if (sender == null) {
-                Timber.w("No sender for dataSentToIdentifier to %s", identifier);
-                return;
-            }
+                    // Process completely sent AirShare messages, pass non-AirShare messages
+                    // up via messageSentToPeer
+                    if (message.equals(localIdentityMessage)) {
 
-            Pair<SessionMessage, Float> messagePair = sender.ackChunkDelivery();
-
-            if (messagePair != null) {
-
-                SessionMessage message = messagePair.first;
-                float progress = messagePair.second;
-
-                if (VERBOSE) Timber.d("%d %s bytes (%.0f pct) sent to %s",
-                                      data.length,
-                                      message.getType(),
-                                      progress * 100,
-                                      identifier);
-
-                if (progress == 1 && message.equals(localIdentityMessage)) {
-                    Timber.d("Local identity acknowledged by recipient");
-                    identifyingPeers.add(identifier);
-                }
-
-                Peer recipient = identifiedPeers.get(identifier);
-                if (recipient != null) {
-                    if (progress == 1) {
-
-                        // Process completely sent AirShare messages, pass non-AirShare messages
-                        // up via messageSentToPeer
-                        if (message.equals(localIdentityMessage)) {
-
-                            if (peerIdentifiers.get(recipient).size() == 1) {
-                                Timber.d("Reporting peer connected after last id sent");
-                                callback.peerStatusUpdated(recipient,
-                                                           Transport.ConnectionStatus.CONNECTED,
-                                                           hostIdentifiers.contains(identifier));
-                            }
-
-                        } else if (message.getType().equals(TransportUpgradeMessage.HEADER_TYPE)) {
-                            // Report transport upgraded once peer connects over new transport
-                            // don't report to #messageSendingToPeer
-                            Timber.d("Sent TranportUpgradeMessage");
-
-                        } else {
-                            callback.messageSentToPeer(message,
-                                    identifiedPeers.get(identifier),
-                                    null);
+                        if (peerIdentifiers.get(recipient).size() == 1) {
+                            Timber.d("Reporting peer connected after last id sent");
+                            callback.peerStatusUpdated(recipient,
+                                                       Transport.ConnectionStatus.CONNECTED,
+                                                       hostIdentifiers.contains(identifier));
                         }
 
+                    } else if (message.getType().equals(TransportUpgradeMessage.HEADER_TYPE)) {
+                        // Report transport upgraded once peer connects over new transport
+                        // don't report to #messageSendingToPeer
+                        Timber.d("Sent TranportUpgradeMessage");
+
                     } else {
-
-                        callback.messageSendingToPeer(message,
+                        callback.messageSentToPeer(message,
                                 identifiedPeers.get(identifier),
-                                progress);
+                                null);
                     }
-                } else
-                    Timber.w("Cannot report %s message send, %s not yet identified",
-                        message.getType(), identifier);
 
-                byte[] toSend = sender.getNextChunk(transport.getMtuForIdentifier(identifier));
-                if (toSend != null)
-                    transport.sendData(toSend, identifier);
+                } else {
+
+                    callback.messageSendingToPeer(message,
+                            identifiedPeers.get(identifier),
+                            progress);
+                }
             } else
-                Timber.w("No current message corresponding to dataSentToIdentifier");
-        }
+                Timber.w("Cannot report %s message send, %s not yet identified",
+                    message.getType(), identifier);
+
+            byte[] toSend = sender.getNextChunk(transport.getMtuForIdentifier(identifier));
+            if (toSend != null)
+                transport.sendData(toSend, identifier);
+        } else
+            Timber.w("No current message corresponding to dataSentToIdentifier");
     }
 
     @Override
-    public void identifierUpdated(Transport transport,
+    public synchronized void identifierUpdated(Transport transport,
                                   String identifier,
                                   Transport.ConnectionStatus status,
                                   boolean peerIsHost,
@@ -507,72 +502,69 @@ public class SessionManager implements Transport.TransportCallback,
         // Process messages belonging to the AirShare framework and propagate
         // application level messages via our callback
 
-        synchronized (lock) {
+        String senderIdentifier = identifierReceivers.inverse().get(receiver);
 
-            String senderIdentifier = identifierReceivers.inverse().get(receiver);
+        if (e == null) {
 
-            if (e == null) {
+            Timber.d("Received complete %s message from %s", message.getType(), senderIdentifier);
 
-                Timber.d("Received complete %s message from %s", message.getType(), senderIdentifier);
+            if (message instanceof IdentityMessage) {
 
-                if (message instanceof IdentityMessage) {
+                Peer peer = ((IdentityMessage) message).getPeer();
 
-                    Peer peer = ((IdentityMessage) message).getPeer();
+                peerIdentifiers.put(peer, senderIdentifier);
 
-                    peerIdentifiers.put(peer, senderIdentifier);
+                boolean sentIdentityToSender = identifyingPeers.contains(senderIdentifier);
+                boolean newIdentity = !identifiedPeers.containsKey(senderIdentifier); // should never be false
 
-                    boolean sentIdentityToSender = identifyingPeers.contains(senderIdentifier);
-                    boolean newIdentity = !identifiedPeers.containsKey(senderIdentifier); // should never be false
+                identifyingPeers.remove(senderIdentifier);
+                identifiedPeers.put(senderIdentifier, peer);
 
-                    identifyingPeers.remove(senderIdentifier);
-                    identifiedPeers.put(senderIdentifier, peer);
+                Transport identifierTransport = identifierTransports.get(senderIdentifier);
+                boolean newTransport = peerTransports.get(peer) == null || !peerTransports.get(peer).contains(identifierTransport);
+                registerTransportForPeer(identifierTransport, peer);
 
-                    Transport identifierTransport = identifierTransports.get(senderIdentifier);
-                    boolean newTransport = peerTransports.get(peer) == null || !peerTransports.get(peer).contains(identifierTransport);
-                    registerTransportForPeer(identifierTransport, peer);
-
-                    if (newIdentity) {
-                        Timber.d("Received #%s identifier for %s. %s", String.valueOf(peerIdentifiers.get(peer).size()),
-                                                                     peer.getAlias(),
-                                                                     sentIdentityToSender ? "" : "Responding with own.");
-                        // As far as upper layers are concerned, connection events occur when the remote
-                        // peer is identified.
-                        if (!sentIdentityToSender)
-                            sendMessage(localIdentityMessage, peer); // Report peer connected after identity send ack'd
-                        else if (peerIdentifiers.get(peer).size() == 1) // If peer is already connected via another transport, don't re-notify
-                            callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED, hostIdentifiers.contains(senderIdentifier));
-                    }
-
-                    // We must notify client of new transport *after* sending identity, if necessary. Else they might queue data ahead of it
-                    if (newTransport && peerIdentifiers.get(peer).size() > 1) {
-                        callback.peerTransportUpdated(peer, identifierTransport, null);
-
-                        // TESTING : Stop base transport when upgrade successful
-                        Timber.d("Stopping base transport. %d identifiers for peer", peerIdentifiers.get(peer).size());
-                        Transport baseTransport = transports.first();
-                        baseTransport.stop();
-                    }
-
-                } else if (message instanceof TransportUpgradeMessage) {
-                    Peer peer = identifiedPeers.get(senderIdentifier);
-                    int transportCode = ((TransportUpgradeMessage) message).getTransportCode();
-                    Timber.d("Got TransportUpgradeMessage for transport %d from %s", transportCode, peer.getAlias());
-                    peerUpgradeRequests.put(peer, getAvailableTransportByCode(transportCode));
-                    upgradeTransport(peer, transportCode);
-
-                } else if (identifiedPeers.containsKey(senderIdentifier)) {
-                    // This message is not involved in the AirShare framework, so we notify the next layer up
-                    callback.messageReceivedFromPeer(message, identifiedPeers.get(senderIdentifier));
-
-                } else {
-
-                    Timber.w("Received complete non-identity message from unidentified peer");
+                if (newIdentity) {
+                    Timber.d("Received #%s identifier for %s. %s", String.valueOf(peerIdentifiers.get(peer).size()),
+                                                                 peer.getAlias(),
+                                                                 sentIdentityToSender ? "" : "Responding with own.");
+                    // As far as upper layers are concerned, connection events occur when the remote
+                    // peer is identified.
+                    if (!sentIdentityToSender)
+                        sendMessage(localIdentityMessage, peer); // Report peer connected after identity send ack'd
+                    else if (peerIdentifiers.get(peer).size() == 1) // If peer is already connected via another transport, don't re-notify
+                        callback.peerStatusUpdated(peer, Transport.ConnectionStatus.CONNECTED, hostIdentifiers.contains(senderIdentifier));
                 }
 
+                // We must notify client of new transport *after* sending identity, if necessary. Else they might queue data ahead of it
+                if (newTransport && peerIdentifiers.get(peer).size() > 1) {
+                    callback.peerTransportUpdated(peer, identifierTransport, null);
+
+                    // TESTING : Stop base transport when upgrade successful
+                    Timber.d("Stopping base transport. %d identifiers for peer", peerIdentifiers.get(peer).size());
+                    Transport baseTransport = transports.first();
+                    baseTransport.stop();
+                }
+
+            } else if (message instanceof TransportUpgradeMessage) {
+                Peer peer = identifiedPeers.get(senderIdentifier);
+                int transportCode = ((TransportUpgradeMessage) message).getTransportCode();
+                Timber.d("Got TransportUpgradeMessage for transport %d from %s", transportCode, peer.getAlias());
+                peerUpgradeRequests.put(peer, getAvailableTransportByCode(transportCode));
+                upgradeTransport(peer, transportCode);
+
+            } else if (identifiedPeers.containsKey(senderIdentifier)) {
+                // This message is not involved in the AirShare framework, so we notify the next layer up
+                callback.messageReceivedFromPeer(message, identifiedPeers.get(senderIdentifier));
+
             } else {
-                Timber.d("Incoming message from %s failed with error '%s'", senderIdentifier, e.getLocalizedMessage());
-                e.printStackTrace();
+
+                Timber.w("Received complete non-identity message from unidentified peer");
             }
+
+        } else {
+            Timber.d("Incoming message from %s failed with error '%s'", senderIdentifier, e.getLocalizedMessage());
+            e.printStackTrace();
         }
     }
 
