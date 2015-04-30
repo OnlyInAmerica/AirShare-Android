@@ -19,6 +19,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import pro.dbro.airshare.transport.Transport;
+import pro.dbro.airshare.transport.TransportState;
 import pro.dbro.airshare.transport.ble.BLETransport;
 import pro.dbro.airshare.transport.wifi.WifiTransport;
 import timber.log.Timber;
@@ -63,6 +64,7 @@ public class SessionManager implements Transport.TransportCallback,
     private Set<String>                               identifyingPeers           = new HashSet<>();
     private Set<String>                               hostIdentifiers            = new HashSet<>();
     private HashMap<Peer, Transport>                  peerUpgradeRequests        = new HashMap<>();
+    private TransportState                            baseTransportState         = new TransportState(false, false, false);
 
     // <editor-fold desc="Public API">
 
@@ -88,11 +90,13 @@ public class SessionManager implements Transport.TransportCallback,
     public void advertiseLocalPeer() {
         // Only advertise on the "base" (first) transport
         transports.first().advertise();
+        baseTransportState = new TransportState(baseTransportState.isStopped, true, baseTransportState.wasScanning);
     }
 
     public void scanForPeers() {
         // Only scan on the "base" (first) transport
         transports.first().scanForPeers();
+        baseTransportState = new TransportState(baseTransportState.isStopped, baseTransportState.wasAdvertising, true);
     }
 
     /**
@@ -148,7 +152,7 @@ public class SessionManager implements Transport.TransportCallback,
         return new HashSet<Peer>(identifiedPeers.values());
     }
 
-    public void stop() {
+    public synchronized void stop() {
         // Stop all running transports
         for (Transport transport : transports)
             transport.stop();
@@ -160,7 +164,6 @@ public class SessionManager implements Transport.TransportCallback,
         Timber.d("Transport upgrade with %s requested", remotePeer.getAlias());
         Transport supplementalTransport = null;
         Iterator<Transport> transports = this.transports.iterator();
-        Transport baseTransport = transports.next(); // Skip the first "base" transport
 
         while (transports.hasNext()) {
             supplementalTransport = transports.next();
@@ -201,6 +204,8 @@ public class SessionManager implements Transport.TransportCallback,
         hostIdentifiers.clear();
         peerUpgradeRequests.clear();
         peerIdentifiers.clear();
+
+        baseTransportState = new TransportState(false, false, false);
     }
 
     private void initializeTransports(String serviceName) {
@@ -223,8 +228,6 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     private void upgradeTransport(Peer remotePeer, int transportCode) {
-        Transport baseTransport = transports.first();
-
         Transport requestedTransport = getAvailableTransportByCode(transportCode);
 
         if (requestedTransport == null) {
@@ -449,6 +452,16 @@ public class SessionManager implements Transport.TransportCallback,
                                 Transport.ConnectionStatus.DISCONNECTED,
                                 peerIsHost);
 
+                        if (baseTransportState.isStopped) {
+                            Transport baseTransport = transports.first();
+                            baseTransportState = new TransportState(false,
+                                                                    baseTransportState.wasAdvertising,
+                                                                    baseTransportState.wasScanning);
+
+                            if (baseTransportState.wasAdvertising) baseTransport.advertise();
+                            if (baseTransportState.wasScanning) baseTransport.scanForPeers();
+                        }
+
                     } else if (identifiers.size() > 0) {
                         Timber.d("Transport disconnected from %s. %d others remain", peer.getAlias(), identifiers.size());
                         // One of the peers' identifiers disconnected.
@@ -542,6 +555,7 @@ public class SessionManager implements Transport.TransportCallback,
 
                     // TESTING : Stop base transport when upgrade successful
                     Timber.d("Stopping base transport. %d identifiers for peer", peerIdentifiers.get(peer).size());
+                    baseTransportState = new TransportState(true, baseTransportState.wasAdvertising, baseTransportState.wasScanning);
                     Transport baseTransport = transports.first();
                     baseTransport.stop();
                 }
