@@ -1,4 +1,6 @@
 apply plugin: 'com.android.library'
+apply plugin: 'com.jakewharton.hugo'
+
 
 android {
     compileSdkVersion 22
@@ -16,6 +18,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
+    // Require DEBUG variant published to enable Hugo annotation based method logging
+    // see http://tools.android.com/tech-docs/new-build-system/user-guide#TOC-Library-Publication
+    //defaultPublishConfig "debug"
 
     packagingOptions {
         exclude 'META-INF/LICENSE.txt'

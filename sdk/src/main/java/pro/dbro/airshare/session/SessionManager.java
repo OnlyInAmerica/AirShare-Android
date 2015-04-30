@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import hugo.weaving.DebugLog;
 import pro.dbro.airshare.transport.Transport;
 import pro.dbro.airshare.transport.TransportState;
 import pro.dbro.airshare.transport.ble.BLETransport;
@@ -105,6 +106,7 @@ public class SessionManager implements Transport.TransportCallback,
      */
     // TODO : This  method needs to be re-evaluated to be more robust
     // If preferred transport not available, queue on base transport?
+    @DebugLog
     public synchronized void sendMessage(SessionMessage message, Peer recipient) {
 
         Set<String> recipientIdentifiers = peerIdentifiers.get(recipient);
@@ -152,6 +154,7 @@ public class SessionManager implements Transport.TransportCallback,
         return new HashSet<Peer>(identifiedPeers.values());
     }
 
+    @DebugLog
     public synchronized void stop() {
         // Stop all running transports
         for (Transport transport : transports)
@@ -160,6 +163,7 @@ public class SessionManager implements Transport.TransportCallback,
         reset();
     }
 
+    @DebugLog
     public synchronized void requestTransportUpgrade(Peer remotePeer) {
         Timber.d("Transport upgrade with %s requested", remotePeer.getAlias());
         Transport supplementalTransport = null;
@@ -193,6 +197,7 @@ public class SessionManager implements Transport.TransportCallback,
     /**
      * Stop all supplementary transports and, if necessary, resume the base transport
      */
+    @DebugLog
     public synchronized void downgradeTransport() {
         Iterator<Transport> transportIterator = transports.iterator();
         Transport baseTransport = transportIterator.next();
@@ -331,6 +336,7 @@ public class SessionManager implements Transport.TransportCallback,
     // <editor-fold desc="TransportCallback">
 
     @Override
+    @DebugLog
     public synchronized void dataReceivedFromIdentifier(Transport transport, byte[] data, String identifier) {
 
         // An asymmetric transport may not receive connection events
@@ -345,6 +351,7 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     @Override
+    @DebugLog
     public synchronized void dataSentToIdentifier(Transport transport, byte[] data, String identifier, Exception exception) {
 
         if (exception != null) {
@@ -421,6 +428,7 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     @Override
+    @DebugLog
     public synchronized void identifierUpdated(Transport transport,
                                   String identifier,
                                   Transport.ConnectionStatus status,
@@ -536,6 +544,7 @@ public class SessionManager implements Transport.TransportCallback,
     }
 
     @Override
+    @DebugLog
     public void onComplete(SessionMessageDeserializer receiver, SessionMessage message, Exception e) {
 
         // Process messages belonging to the AirShare framework and propagate
