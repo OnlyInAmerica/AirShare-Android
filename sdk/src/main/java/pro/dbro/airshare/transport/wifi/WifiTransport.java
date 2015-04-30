@@ -43,6 +43,12 @@ import timber.log.Timber;
  *
  * Proof-of-concept. Not yet ready for use. Supports a single WiFi Direct connection at time
  *
+ * Development Note : Need to implement true acknowledgement.
+ * {@link pro.dbro.airshare.transport.Transport.TransportCallback#dataSentToIdentifier(Transport, byte[], String, Exception)}
+ * reports that the data was written to the Socket, but not that it was received on the other end. Bugs have been witnessed
+ * where a client that shuts down the connection immediately after that callback result in the remote peer losing connection
+ * before receiving said data.
+ *
  * Created by davidbrodsky on 2/21/15.
  */
 public class WifiTransport extends Transport implements WifiP2pManager.ConnectionInfoListener, WifiP2pManager.ChannelListener {
