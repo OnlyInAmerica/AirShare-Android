@@ -1,6 +1,5 @@
 package pro.dbro.airshare.transport.ble;
 
-import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGatt;
@@ -85,7 +84,6 @@ public class BLECentral {
     private BLETransportCallback transportCallback;
 
     private boolean isScanning = false;
-    private boolean reportedStartScanSuccess = false;
 
     // <editor-fold desc="Public API">
 
@@ -202,11 +200,6 @@ public class BLECentral {
         scanCallback = new ScanCallback() {
             @Override
             public void onScanResult(int callbackType, ScanResult scanResult) {
-
-                if (!reportedStartScanSuccess) {
-                    Timber.d("Scanning started successfully");
-                    reportedStartScanSuccess = true;
-                }
 
                 if (connectedDevices.containsKey(scanResult.getDevice().getAddress())) {
                     // If we're already connected, forget it
@@ -448,6 +441,7 @@ public class BLECentral {
 
             scanner.startScan(createScanFilters(), createScanSettings(), scanCallback);
             isScanning = true;
+            Timber.d("Scanning started successfully"); // TODO : This is a lie but I can't find a way to be notified when scan is successful aside from BluetoothGatt Log
             //Toast.makeText(context, context.getString(R.string.scan_started), Toast.LENGTH_SHORT).show();
         }
     }
@@ -471,7 +465,6 @@ public class BLECentral {
             scanner.stopScan(scanCallback);
             scanner = null;
             isScanning = false;
-            reportedStartScanSuccess = false;
         }
     }
 
