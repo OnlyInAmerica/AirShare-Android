@@ -11,9 +11,9 @@ Also see the [iOS library](https://github.com/chrisballinger/AirShare)
 To abstract away the particulars of connection negotiation with clients over radio technologies like BLE and WiFi.
 P2P networking should be as simple as:
 
-1) Assign an identity to your local user and to the service this user belongs to
-2) Express an intent to discover other users, or make your local user discoverable
-3) Exchange arbitrary data with discovered users over a plain serial interface
+1. Assign an identity to your local user and to the service this user belongs to
+1. Express an intent to discover other users, or make your local user discoverable
+1. Exchange arbitrary data with discovered users over a plain serial interface
 
 ## Usage
 
@@ -25,6 +25,7 @@ You create a `PeerFragment` with one of three static creators depending on the l
 
 Below is an example `Activity` illustrating comprehensive use of `PeerFragment`.
 
+```java
     public class SyncShareActivity extends Activity implements PeerFragment.PeerFragmentListener {
 
         ...
@@ -80,11 +81,13 @@ Below is an example `Activity` illustrating comprehensive use of `PeerFragment`.
             getFragmentManager().popBackStack();
         }
     }
+```
 
 ### Asynchronous Sharing
 
     AirShare's `AirShareFragment` is a non-UI fragment that facilitates binding to the `AirShareService` which gives you full control of all sharing operations.
 
+```java
     public class AsyncShareActivity extends Activity implements AirShareFragment.AirShareCallback {
 
         private AirShareFragment airShareFragment;
@@ -138,7 +141,7 @@ Below is an example `Activity` illustrating comprehensive use of `PeerFragment`.
         }
 
     }
-
+```
 
 ## License
 
