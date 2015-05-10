@@ -105,7 +105,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
 
     private byte[] payload;
 
-    public static PeerFragment toSend(@NonNull HashMap<String, Object> toSend,
+    public static PeerFragment toSend(@NonNull byte[] toSend,
                                       @NonNull String username,
                                       @NonNull String serviceName) {
         Bundle bundle = new Bundle();
@@ -151,11 +151,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
             mode = (Mode) getArguments().getSerializable(BUNDLE_MODE);
             username = getArguments().getString(BUNDLE_USERNAME);
             serviceName = getArguments().getString(BUNDLE_SERVICENAME);
-            try {
-                payload = new JSONObject((HashMap) getArguments().getSerializable(BUNDLE_PAYLOAD)).toString().getBytes("UTF-8");
-            } catch (UnsupportedEncodingException e) {
-                throw new IllegalStateException("Provided Map is not JSON compatible!");
-            }
+            payload = (byte[]) getArguments().getSerializable(BUNDLE_PAYLOAD);
         }
     }
 

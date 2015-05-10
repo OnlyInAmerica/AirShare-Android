@@ -98,8 +98,10 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
         dataToShare.put("quote", quote);
         dataToShare.put("author", author);
 
+        byte[] payloadToShare = new JSONObject(dataToShare).toString().getBytes();
+
         getFragmentManager().beginTransaction()
-                .replace(R.id.frame, PeerFragment.toSend(dataToShare, PrefsManager.getUsername(this), SERVICE_NAME))
+                .replace(R.id.frame, PeerFragment.toSend(payloadToShare, PrefsManager.getUsername(this), SERVICE_NAME))
                 .addToBackStack(null)
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
