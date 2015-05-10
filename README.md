@@ -26,61 +26,61 @@ You create a `PeerFragment` with one of three static creators depending on the l
 Below is an example `Activity` illustrating comprehensive use of `PeerFragment`.
 
 ```java
-    public class SyncShareActivity extends Activity implements PeerFragment.PeerFragmentListener {
+public class SyncShareActivity extends Activity implements PeerFragment.PeerFragmentListener {
 
-        ...
+    ...
 
-        public void onSendButtonClicked(View v) {
+    public void onSendButtonClicked(View v) {
 
-            addFragment(PeerFragment.toSend("Hello!".getBytes(), // payload to send
-                                            "Alice",             // alias to advertise to other peers
-                                            "MyChat"));          // service name
-        }
-
-        public void onReceiveButtonClicked(View v) {
-
-            addFragment(PeerFragment.toReceive("Bob",            // alias to advertise to other peers
-                                               "MyChat"))        // service name
-        }
-
-        private void addFragment(Fragment fragment) {
-            getFragmentManager().beginTransaction()
-                                .replace(R.id.frame, fragment)
-                                .addToBackStack(null)                                       // Allow user to remove fragment via Back navigation. Recommended if Fragment occupies entire screen
-                                .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)   // Add a simple transition
-                                .commit();
-        }
-
-        /** PeerFragmentListener */
-
-        @Override
-        public void onDataReceived(@Nullable byte[] data,
-                                   @NonNull Peer sender) {
-
-            // Handle data received from sender
-        }
-
-        @Override
-        public void onDataSent(@Nullable byte[] data,
-                               @NonNull Peer recipient) {
-
-            // Handle data sent from sender
-        }
-
-        @Override
-        public void onDataRequestedForPeer(@NonNull Peer recipient) {
-            // If you create your PeerFragment in BOTH mode, this callback
-            // will indicate the user selected a peer recipient and it is your duty
-            // to provide the sendDataToPeer
-        }
-
-        @Override
-        public void onFinished(@Nullable Exception exception) {
-            // PeerFragment is finished. Remove it.
-            // If exception is not null, an error occurred
-            getFragmentManager().popBackStack();
-        }
+        addFragment(PeerFragment.toSend("Hello!".getBytes(), // payload to send
+                                        "Alice",             // alias to advertise to other peers
+                                        "MyChat"));          // service name
     }
+
+    public void onReceiveButtonClicked(View v) {
+
+        addFragment(PeerFragment.toReceive("Bob",            // alias to advertise to other peers
+                                           "MyChat"))        // service name
+    }
+
+    private void addFragment(Fragment fragment) {
+        getFragmentManager().beginTransaction()
+                            .replace(R.id.frame, fragment)
+                            .addToBackStack(null)                                       // Allow user to remove fragment via Back navigation. Recommended if Fragment occupies entire screen
+                            .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)   // Add a simple transition
+                            .commit();
+    }
+
+    /** PeerFragmentListener */
+
+    @Override
+    public void onDataReceived(@Nullable byte[] data,
+                               @NonNull Peer sender) {
+
+        // Handle data received from sender
+    }
+
+    @Override
+    public void onDataSent(@Nullable byte[] data,
+                           @NonNull Peer recipient) {
+
+        // Handle data sent from sender
+    }
+
+    @Override
+    public void onDataRequestedForPeer(@NonNull Peer recipient) {
+        // If you create your PeerFragment in BOTH mode, this callback
+        // will indicate the user selected a peer recipient and it is your duty
+        // to provide the sendDataToPeer
+    }
+
+    @Override
+    public void onFinished(@Nullable Exception exception) {
+        // PeerFragment is finished. Remove it.
+        // If exception is not null, an error occurred
+        getFragmentManager().popBackStack();
+    }
+}
 ```
 
 ### Asynchronous Sharing
@@ -88,59 +88,59 @@ Below is an example `Activity` illustrating comprehensive use of `PeerFragment`.
     AirShare's `AirShareFragment` is a non-UI fragment that facilitates binding to the `AirShareService` which gives you full control of all sharing operations.
 
 ```java
-    public class AsyncShareActivity extends Activity implements AirShareFragment.AirShareCallback {
+public class AsyncShareActivity extends Activity implements AirShareFragment.AirShareCallback {
 
-        private AirShareFragment airShareFragment;
-        private AirShareService.ServiceBinder airShareBinder;
+    private AirShareFragment airShareFragment;
+    private AirShareService.ServiceBinder airShareBinder;
 
-        @Override
-        protected void onCreate(Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-            if (airShareFragment == null) {
-                airShareFragment = AirShareFragment.newInstance(this);
+        if (airShareFragment == null) {
+            airShareFragment = AirShareFragment.newInstance(this);
 
-                // Control whether the AirShareService is stopped when this Activity is stopped (false)
-                // or should continue to operate in the background (true). Default is false.
-                airShareFragment.setShouldServiceContinueInBackground(true);
+            // Control whether the AirShareService is stopped when this Activity is stopped (false)
+            // or should continue to operate in the background (true). Default is false.
+            airShareFragment.setShouldServiceContinueInBackground(true);
 
-                getSupportFragmentManager().beginTransaction()
-                        .add(airShareFragment, "airshare")
-                        .commit();
-            }
+            getSupportFragmentManager().beginTransaction()
+                    .add(airShareFragment, "airshare")
+                    .commit();
+        }
+    }
+
+    /** AirShareFragment.AirShareCallback */
+
+    public void registrationRequired() {
+        airShareFragment.registerUserForService("Alice", "MyChat);
+    }
+
+    public void onServiceReady(@NonNull AirShareService.ServiceBinder serviceBinder) {
+        airShareBinder = serviceBinder;
+        // You can now use serviceBinder to perform all sharing operations
+        // and register for callbacks reporting network state.
+        airShareBinder.setCallback(new AirShareService.Callback() {
+
+            public void onDataRecevied(byte[] data, Peer sender, Exception exception) {}
+
+            public void onDataSent(byte[] data, Peer recipient, Exception exception) {}
+
+            public void onPeerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean peerIsHost) {}
+
+            public void onPeerTransportUpdated(@NonNull Peer peer, int newTransportCode, @Nullable Exception exception) {}
         }
 
-        /** AirShareFragment.AirShareCallback */
-
-        public void registrationRequired() {
-            airShareFragment.registerUserForService("Alice", "MyChat);
-        }
-
-        public void onServiceReady(@NonNull AirShareService.ServiceBinder serviceBinder) {
-            airShareBinder = serviceBinder;
-            // You can now use serviceBinder to perform all sharing operations
-            // and register for callbacks reporting network state.
-            airShareBinder.setCallback(new AirShareService.Callback() {
-
-                public void onDataRecevied(byte[] data, Peer sender, Exception exception) {}
-
-                public void onDataSent(byte[] data, Peer recipient, Exception exception) {}
-
-                public void onPeerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean peerIsHost) {}
-
-                public void onPeerTransportUpdated(@NonNull Peer peer, int newTransportCode, @Nullable Exception exception) {}
-            }
-
-            // Once peers are reported via onPeerTransportUpdated(Peer aPeer ...) you can send them data!
-            // airShareBinder.send("Hello!".getBytes(), aPeer);
-
-        }
-
-        public void onFinished(@Nullable Exception exception) {
-            // This is currently unused, but will report an error initializing the AirShareService
-        }
+        // Once peers are reported via onPeerTransportUpdated(Peer aPeer ...) you can send them data!
+        // airShareBinder.send("Hello!".getBytes(), aPeer);
 
     }
+
+    public void onFinished(@Nullable Exception exception) {
+        // This is currently unused, but will report an error initializing the AirShareService
+    }
+
+}
 ```
 
 ## License
