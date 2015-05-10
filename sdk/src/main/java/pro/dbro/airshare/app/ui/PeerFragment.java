@@ -270,7 +270,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
     }
 
     @Override
-    public void onServiceReady(AirShareService.ServiceBinder serviceBinder) {
+    public void onServiceReady(@NonNull AirShareService.ServiceBinder serviceBinder) {
         this.serviceBinder = serviceBinder;
         this.serviceBinder.setCallback(this);
 

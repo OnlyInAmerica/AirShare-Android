@@ -13,6 +13,8 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.widget.TextView;
 
 import pro.dbro.airshare.app.AirShareService;
@@ -40,13 +42,13 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
         /**
          * Indicates AirShare is ready
          */
-        public void onServiceReady(AirShareService.ServiceBinder serviceBinder);
+        public void onServiceReady(@NonNull AirShareService.ServiceBinder serviceBinder);
 
         /**
          * Indicates the AirShare service is finished.
          * This would occur if the user declined to enable required resources like Bluetooth
          */
-        public void onFinished(Exception exception);
+        public void onFinished(@Nullable Exception exception);
 
     }
 
