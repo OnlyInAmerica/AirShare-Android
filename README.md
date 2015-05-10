@@ -26,7 +26,8 @@ You create a `PeerFragment` with one of three static creators depending on the l
 Below is an example `Activity` illustrating comprehensive use of `PeerFragment`.
 
 ```java
-public class SyncShareActivity extends Activity implements PeerFragment.PeerFragmentListener {
+public class SyncShareActivity extends Activity
+                               implements PeerFragment.PeerFragmentListener {
 
     ...
 
@@ -88,7 +89,8 @@ public class SyncShareActivity extends Activity implements PeerFragment.PeerFrag
 AirShare's `AirShareFragment` is a non-UI fragment that facilitates binding to the `AirShareService` which gives you full control of all sharing operations.
 
 ```java
-public class AsyncShareActivity extends Activity implements AirShareFragment.AirShareCallback {
+public class AsyncShareActivity extends Activity
+                                implements AirShareFragment.AirShareCallback {
 
     private AirShareFragment airShareFragment;
     private AirShareService.ServiceBinder airShareBinder;
@@ -100,8 +102,9 @@ public class AsyncShareActivity extends Activity implements AirShareFragment.Air
         if (airShareFragment == null) {
             airShareFragment = AirShareFragment.newInstance(this);
 
-            // Control whether the AirShareService is stopped when this Activity is stopped (false)
-            // or should continue to operate in the background (true). Default is false.
+            // Control whether AirShareService's lifecyle
+            // is tied to this Activity (false) or should continue
+            // to operate in the background (true). Default is false.
             airShareFragment.setShouldServiceContinueInBackground(true);
 
             getSupportFragmentManager().beginTransaction()
@@ -122,22 +125,32 @@ public class AsyncShareActivity extends Activity implements AirShareFragment.Air
         // and register for callbacks reporting network state.
         airShareBinder.setCallback(new AirShareService.Callback() {
 
-            public void onDataRecevied(byte[] data, Peer sender, Exception exception) {}
+            public void onDataRecevied(byte[] data,
+                                       Peer sender,
+                                       Exception exception) {}
 
-            public void onDataSent(byte[] data, Peer recipient, Exception exception) {}
+            public void onDataSent(byte[] data,
+                                   Peer recipient,
+                                   Exception exception) {}
 
-            public void onPeerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean peerIsHost) {}
+            public void onPeerStatusUpdated(Peer peer,
+                                            Transport.ConnectionStatus newStatus,
+                                            boolean peerIsHost) {}
 
-            public void onPeerTransportUpdated(@NonNull Peer peer, int newTransportCode, @Nullable Exception exception) {}
+            public void onPeerTransportUpdated(@NonNull Peer peer,
+                                               int newTransportCode,
+                                               @Nullable Exception exception) {}
         }
 
-        // Once peers are reported via onPeerTransportUpdated(Peer aPeer ...) you can send them data!
+        // Once peers are reported via onPeerTransportUpdated(Peer aPeer ...)
+        // you can send them data! e.g:
         // airShareBinder.send("Hello!".getBytes(), aPeer);
 
     }
 
     public void onFinished(@Nullable Exception exception) {
-        // This is currently unused, but will report an error initializing the AirShareService
+        // This is currently unused, but will report an error
+        // initializing the AirShareService
     }
 
 }
