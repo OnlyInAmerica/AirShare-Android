@@ -85,7 +85,7 @@ public class SyncShareActivity extends Activity implements PeerFragment.PeerFrag
 
 ### Asynchronous Sharing
 
-    AirShare's `AirShareFragment` is a non-UI fragment that facilitates binding to the `AirShareService` which gives you full control of all sharing operations.
+AirShare's `AirShareFragment` is a non-UI fragment that facilitates binding to the `AirShareService` which gives you full control of all sharing operations.
 
 ```java
 public class AsyncShareActivity extends Activity implements AirShareFragment.AirShareCallback {
@@ -113,7 +113,7 @@ public class AsyncShareActivity extends Activity implements AirShareFragment.Air
     /** AirShareFragment.AirShareCallback */
 
     public void registrationRequired() {
-        airShareFragment.registerUserForService("Alice", "MyChat);
+        airShareFragment.registerUserForService("Alice", "MyChat");
     }
 
     public void onServiceReady(@NonNull AirShareService.ServiceBinder serviceBinder) {
