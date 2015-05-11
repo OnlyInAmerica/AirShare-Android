@@ -13,6 +13,7 @@ P2P networking should be as simple as:
 
 1. Assign an identity to your local user and to the service this user belongs to
 1. Express an intent to discover other users, or make your local user discoverable
+1. (Optional) When a remote peer is discovered, query available transports and upgrade transport if desired.
 1. Exchange arbitrary data with discovered users over a plain serial interface
 
 ## Usage
