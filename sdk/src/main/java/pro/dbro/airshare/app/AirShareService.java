@@ -36,15 +36,27 @@ import timber.log.Timber;
 public class AirShareService extends Service implements ActivityRecevingMessagesIndicator,
                                                         SessionManager.SessionManagerCallback {
 
-    public static interface Callback {
+    public interface Callback {
 
-        public void onDataRecevied(byte[] data, Peer sender, Exception exception);
+        void onDataRecevied(@NonNull AirShareService.ServiceBinder binder,
+                            @Nullable byte[] data,
+                            @NonNull Peer sender,
+                            @Nullable Exception exception);
 
-        public void onDataSent(byte[] data, Peer recipient, Exception exception);
+        void onDataSent(@NonNull AirShareService.ServiceBinder binder,
+                        @Nullable byte[] data,
+                        @NonNull Peer recipient,
+                        @Nullable Exception exception);
 
-        public void onPeerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean peerIsHost);
+        void onPeerStatusUpdated(@NonNull AirShareService.ServiceBinder binder,
+                                 @NonNull Peer peer,
+                                 @NonNull Transport.ConnectionStatus newStatus,
+                                 boolean peerIsHost);
 
-        public void onPeerTransportUpdated(@NonNull Peer peer, int newTransportCode, @Nullable Exception exception);
+        void onPeerTransportUpdated(@NonNull AirShareService.ServiceBinder binder,
+                                    @NonNull Peer peer,
+                                    int newTransportCode,
+                                    @Nullable Exception exception);
 
     }
 
@@ -150,10 +162,10 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         /**
          * Request a higher-bandwidth transport be established with the remote peer.
          * Notification of the result of this call is reported by
-         * {@link pro.dbro.airshare.app.AirShareService.Callback#onPeerTransportUpdated(pro.dbro.airshare.session.Peer, int, Exception)}
+         * {@link pro.dbro.airshare.app.AirShareService.Callback#onPeerTransportUpdated(pro.dbro.airshare.app.AirShareService.ServiceBinder binder, pro.dbro.airshare.session.Peer, int, Exception)}
          *
          * You can check that a peer supports an additional transport via
-         * {@link Peer#supportsTransport(int)} using a transport code such as
+         * {@link Peer#supportsTransportWithCode(int)} using a transport code such as
          * {@link pro.dbro.airshare.transport.wifi.WifiTransport#TRANSPORT_CODE}
          *
          * When an upgraded transport is established,
@@ -307,7 +319,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
             @Override
             public void run() {
                 if (callback != null)
-                    callback.onPeerStatusUpdated(peer, newStatus, isHost);
+                    callback.onPeerStatusUpdated(binder, peer, newStatus, isHost);
                 else
                     Timber.w("Could not report peer status update, no callback registered");
             }
@@ -316,12 +328,12 @@ public class AirShareService extends Service implements ActivityRecevingMessages
     }
 
     @Override
-    public void messageReceivingFromPeer(SessionMessage message, final Peer recipient, final float progress) {
+    public void messageReceivingFromPeer(@NonNull SessionMessage message, @NonNull final Peer recipient, final float progress) {
         // currently unused
     }
 
     @Override
-    public void messageReceivedFromPeer(SessionMessage message, final Peer sender) {
+    public void messageReceivedFromPeer(@NonNull SessionMessage message, @NonNull final Peer sender) {
         Timber.d("Got %s message from %s", message.getType(), sender.getAlias());
         Iterator<IncomingMessageListener> iterator = incomingMessageListeners.iterator();
         IncomingMessageListener listener;
@@ -343,19 +355,19 @@ public class AirShareService extends Service implements ActivityRecevingMessages
                 @Override
                 public void run() {
                     if (callback != null)
-                        callback.onDataRecevied(incomingTransfer.getBodyBytes(), sender, null);
+                        callback.onDataRecevied(binder, incomingTransfer.getBodyBytes(), sender, null);
                 }
             });
         }
     }
 
     @Override
-    public void messageSendingToPeer(SessionMessage message, Peer recipient, float progress) {
+    public void messageSendingToPeer(@NonNull SessionMessage message, @NonNull Peer recipient, float progress) {
         // currently unused
     }
 
     @Override
-    public void messageSentToPeer(SessionMessage message, final Peer recipient, Exception exception) {
+    public void messageSentToPeer(@NonNull SessionMessage message, @NonNull final Peer recipient, Exception exception) {
         Timber.d("Sent %s to %s", message.getType(), recipient.getAlias());
         Iterator<MessageDeliveryListener> iterator = messageDeliveryListeners.iterator();
         MessageDeliveryListener listener;
@@ -374,7 +386,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
             foregroundHandler.post(new Runnable() {
                 @Override
                 public void run() {
-                    if (callback != null) callback.onDataSent(outgoingTransfer.getBodyBytes(), recipient, null);
+                    if (callback != null) callback.onDataSent(binder, outgoingTransfer.getBodyBytes(), recipient, null);
                 }
             });
         }
@@ -385,7 +397,7 @@ public class AirShareService extends Service implements ActivityRecevingMessages
         foregroundHandler.post(new Runnable() {
             @Override
             public void run() {
-                if (callback != null) callback.onPeerTransportUpdated(peer, newTransportCode, exception);
+                if (callback != null) callback.onPeerTransportUpdated(binder, peer, newTransportCode, exception);
             }
         });
     }

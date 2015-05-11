@@ -48,7 +48,7 @@ public class Peer {
         return transports;
     }
 
-    public boolean supportsTransport(int transportCode) {
+    public boolean supportsTransportWithCode(int transportCode) {
         return (transports & transportCode) == transportCode;
     }
 

@@ -1,18 +1,21 @@
 package pro.dbro.airshare.sample.ui.activity;
 
-import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.Fragment;
-import android.app.FragmentManager;
 import android.app.FragmentTransaction;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v7.app.AppCompatActivity;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toolbar;
 
 import com.nispok.snackbar.Snackbar;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.HashMap;
 
@@ -24,10 +27,14 @@ import pro.dbro.airshare.sample.ui.fragment.WelcomeFragment;
 import pro.dbro.airshare.session.Peer;
 import timber.log.Timber;
 
-public class MainActivity extends Activity implements Toolbar.OnMenuItemClickListener,
-                                                      WelcomeFragment.WelcomeFragmentListener,
-                                                      QuoteWritingFragment.WritingFragmentListener,
-                                                      PeerFragment.PeerFragmentListener {
+/**
+ * An Activity illustrating use of AirShare's {@link PeerFragment} to facilitate
+ * simple synchronous data exchange.
+ */
+public class MainActivity extends AppCompatActivity implements Toolbar.OnMenuItemClickListener,
+        WelcomeFragment.WelcomeFragmentListener,
+        QuoteWritingFragment.WritingFragmentListener,
+        PeerFragment.PeerFragmentListener {
 
     private static final String SERVICE_NAME = "AirShareDemo";
 
@@ -47,7 +54,7 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
         toolbar.setNavigationOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                getFragmentManager().popBackStack();
+                getSupportFragmentManager().popBackStack();
             }
         });
 
@@ -60,14 +67,14 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
             baseFragment = new QuoteWritingFragment();
 
 
-        getFragmentManager().beginTransaction()
+        getSupportFragmentManager().beginTransaction()
                 .replace(R.id.frame, baseFragment)
                 .commit();
 
-        getFragmentManager().addOnBackStackChangedListener(new FragmentManager.OnBackStackChangedListener() {
+        getSupportFragmentManager().addOnBackStackChangedListener(new FragmentManager.OnBackStackChangedListener() {
             @Override
             public void onBackStackChanged() {
-                int numEntries = getFragmentManager().getBackStackEntryCount();
+                int numEntries = getSupportFragmentManager().getBackStackEntryCount();
                 if (numEntries == 0) {
                     // Back at "Home" State (WritingFragment)
                     receiveMenuItem.setVisible(true);
@@ -100,7 +107,7 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
 
         byte[] payloadToShare = new JSONObject(dataToShare).toString().getBytes();
 
-        getFragmentManager().beginTransaction()
+        getSupportFragmentManager().beginTransaction()
                 .replace(R.id.frame, PeerFragment.toSend(payloadToShare, PrefsManager.getUsername(this), SERVICE_NAME))
                 .addToBackStack(null)
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
@@ -113,7 +120,7 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
     }
 
     public void onReceiveButtonClick() {
-        getFragmentManager().beginTransaction()
+        getSupportFragmentManager().beginTransaction()
                 .replace(R.id.frame, PeerFragment.toReceive(PrefsManager.getUsername(this), SERVICE_NAME))
                 .addToBackStack(null)
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
@@ -126,7 +133,7 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
     }
 
     private void showWritingFragment() {
-        getFragmentManager().beginTransaction()
+        getSupportFragmentManager().beginTransaction()
                 .replace(R.id.frame, new QuoteWritingFragment())
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
                 .commit();
@@ -136,30 +143,35 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
     }
 
     @Override
-    public void onDataReceived(@Nullable HashMap<String, Object> headers,
+    public void onDataReceived(@NonNull PeerFragment fragment,
                                @Nullable byte[] data,
                                @NonNull Peer sender) {
 
         // In this example app, we're only using the headers data
-        if (headers != null) {
-            Timber.d("Got data from %s", sender.getAlias());
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setTitle(getString(R.string.quote_received))
-                    .setMessage(getString(R.string.quote_and_author,
-                                          headers.get("quote"),
-                                          headers.get("author")))
-                    .setPositiveButton(getString(R.string.ok), null)
-                    .show();
+        if (data != null) {
+            try {
+                JSONObject json = new JSONObject(new String(data));
+                Timber.d("Got data from %s", sender.getAlias());
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                builder.setTitle(getString(R.string.quote_received))
+                        .setMessage(getString(R.string.quote_and_author,
+                                json.get("quote"),
+                                json.get("author")))
+                        .setPositiveButton(getString(R.string.ok), null)
+                        .show();
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
         }
     }
 
     @Override
-    public void onDataSent(@Nullable HashMap<String, Object> headers,
+    public void onDataSent(@NonNull PeerFragment fragment,
                            @Nullable byte[] data,
                            @NonNull Peer recipient) {
 
         // In this example app, we're only using the headers data
-        if (headers != null) {
+        if (data != null) {
             Timber.d("Sent data to %s", recipient.getAlias());
             Snackbar.with(getApplicationContext())
                     .text(R.string.quote_sent)
@@ -168,19 +180,22 @@ public class MainActivity extends Activity implements Toolbar.OnMenuItemClickLis
     }
 
     @Override
-    public void onDataRequestedForPeer(@NonNull Peer recipient) {
-        // unused
+    public void onDataRequestedForPeer(@NonNull PeerFragment fragment, @NonNull Peer recipient) {
+        // unused. If we were using PeerFragment in send and receive mode, we would
+        // deliver data for peer:
+        // fragment.sendDataToPeer("Some dynamic data".getBytes(), recipient);
+
     }
 
     @Override
-    public void onFinished(Exception exception) {
+    public void onFinished(@NonNull PeerFragment fragment, Exception exception) {
         // Remove last fragment
-        getFragmentManager().popBackStack();
+        getSupportFragmentManager().popBackStack();
     }
 
     @Override
     public boolean onMenuItemClick(MenuItem item) {
-        switch (item.getItemId()){
+        switch (item.getItemId()) {
             case R.id.action_receive:
                 onReceiveButtonClick();
                 return true;

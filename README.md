@@ -31,13 +31,13 @@ public class SyncShareActivity extends Activity
     public void onSendButtonClicked(View v) {
 
         addFragment(PeerFragment.toSend("Hello!".getBytes(), // payload to send
-                                        "Alice",             // alias to advertise to other peers
+                                        "Alice",             // username
                                         "MyChat"));          // service name
     }
 
     public void onReceiveButtonClicked(View v) {
 
-        addFragment(PeerFragment.toReceive("Bob",            // alias to advertise to other peers
+        addFragment(PeerFragment.toReceive("Bob",            // username
                                            "MyChat"))        // service name
     }
 
@@ -52,29 +52,34 @@ public class SyncShareActivity extends Activity
     /** PeerFragmentListener */
 
     @Override
-    public void onDataReceived(@Nullable byte[] data,
+    public void onDataReceived(@NonNull PeerFragment fragment,
+                               @Nullable byte[] data,
                                @NonNull Peer sender) {
 
         // Handle data received from sender
     }
 
     @Override
-    public void onDataSent(@Nullable byte[] data,
+    public void onDataSent(@NonNull PeerFragment fragment,
+                           @Nullable byte[] data,
                            @NonNull Peer recipient) {
 
         // Handle data sent from sender
     }
 
     @Override
-    public void onDataRequestedForPeer(@NonNull Peer recipient) {
-        // If you create your PeerFragment in BOTH mode,
-        // PeerFragment.toSendAndReceive("username", "service"), 
+    public void onDataRequestedForPeer(@NonNull PeerFragment fragment,
+                                       @NonNull Peer recipient) {
+        // If you use PeerFragment.toSendAndReceive("username", "service"),
         // this callback will indicate the user selected a peer 
-        // recipient and it is your duty to provide the sendDataToPeer
+        // recipient and it is your duty to provide the data via
+        // fragment.sendDataToPeer("Some dynamic data".getBytes(), recipient);
     }
 
     @Override
-    public void onFinished(@Nullable Exception exception) {
+    public void onFinished(@NonNull PeerFragment fragment,
+                           @Nullable Exception exception) {
+
         // PeerFragment is finished. Remove it.
         // If exception is not null, an error occurred
         getFragmentManager().popBackStack();
@@ -87,8 +92,8 @@ public class SyncShareActivity extends Activity
 AirShare's `AirShareFragment` is a non-UI fragment that facilitates binding to the `AirShareService` which gives you full control of all sharing operations.
 
 ```java
-public class AsyncShareActivity extends Activity
-                                implements AirShareFragment.AirShareCallback {
+public class AdvancedUseActivity extends AppCompatActivity
+                                 implements AirShareFragment.Callback {
 
     private AirShareFragment airShareFragment;
     private AirShareService.ServiceBinder airShareBinder;
@@ -98,7 +103,10 @@ public class AsyncShareActivity extends Activity
         super.onCreate(savedInstanceState);
 
         if (airShareFragment == null) {
-            airShareFragment = AirShareFragment.newInstance(this);
+            airShareFragment
+                    = AirShareFragment.newInstance("Alice",  // username
+                                                   "MyChat", // service name
+                                                   this);    // AirShareFragment.Callback
 
             // Control whether AirShareService's lifecyle
             // is tied to this Activity (false) or should continue
@@ -113,44 +121,60 @@ public class AsyncShareActivity extends Activity
 
     /** AirShareFragment.AirShareCallback */
 
-    public void registrationRequired() {
-        airShareFragment.registerUserForService("Alice", "MyChat");
-    }
-
     public void onServiceReady(@NonNull AirShareService.ServiceBinder serviceBinder) {
         airShareBinder = serviceBinder;
         // You can now use serviceBinder to perform all sharing operations
         // and register for callbacks reporting network state.
         airShareBinder.setCallback(new AirShareService.Callback() {
 
-            public void onDataRecevied(byte[] data,
-                                       Peer sender,
-                                       Exception exception) {}
+            @Override
+            public void onDataRecevied(@NonNull AirShareService.ServiceBinder binder,
+                                       @Nullable byte[] data,
+                                       @NonNull Peer sender,
+                                       @Nullable Exception exception) {
+                // Handle data received
+            }
 
-            public void onDataSent(byte[] data,
-                                   Peer recipient,
-                                   Exception exception) {}
+            @Override
+            public void onDataSent(@NonNull AirShareService.ServiceBinder binder,
+                                   @Nullable byte[] data,
+                                   @NonNull Peer recipient,
+                                   @Nullable Exception exception) {
+                // Handle data sent
+            }
 
-            public void onPeerStatusUpdated(Peer peer,
-                                            Transport.ConnectionStatus newStatus,
-                                            boolean peerIsHost) {}
+            @Override
+            public void onPeerStatusUpdated(@NonNull AirShareService.ServiceBinder binder,
+                                            @NonNull Peer peer,
+                                            @NonNull Transport.ConnectionStatus newStatus,
+                                            boolean peerIsHost) {
 
-            public void onPeerTransportUpdated(@NonNull Peer peer,
+                if (newStatus == Transport.ConnectionStatus.CONNECTED) {
+                    airShareBinder.send("Hello!".getBytes(), peer);
+
+                    if (peer.supportsTransportWithCode(WifiTransport.TRANSPORT_CODE))
+                        airShareBinder.requestTransportUpgrade(peer);
+                }
+                // Handle peer disconnected
+            }
+
+            @Override
+            public void onPeerTransportUpdated(@NonNull AirShareService.ServiceBinder binder,
+                                               @NonNull Peer peer,
                                                int newTransportCode,
-                                               @Nullable Exception exception) {}
-        }
-
-        // Once peers are reported via onPeerTransportUpdated(Peer aPeer ...)
-        // you can send them data! e.g:
-        // airShareBinder.send("Hello!".getBytes(), aPeer);
-
+                                               @Nullable Exception exception) {
+                if (exception == null) {
+                    // Successfully upgraded connection with peer to WiFi Transport
+                    airShareBinder.send("Hello at high speed!".getBytes(), peer);
+                }
+            }
+        });
     }
 
     public void onFinished(@Nullable Exception exception) {
         // This is currently unused, but will report an error
         // initializing the AirShareService
     }
-
 }
 ```
 

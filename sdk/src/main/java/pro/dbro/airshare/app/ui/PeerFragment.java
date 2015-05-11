@@ -11,11 +11,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import org.json.JSONObject;
-
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
-import java.util.HashMap;
 
 import pro.dbro.airshare.R;
 import pro.dbro.airshare.app.AirShareService;
@@ -53,35 +49,37 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
                                                               AirShareFragment.Callback {
 
     /** Bundle parameters */
-    private static final String BUNDLE_USERNAME    = "user";
-    private static final String BUNDLE_SERVICENAME = "service";
-    private static final String BUNDLE_MODE        = "mode";
-    private static final String BUNDLE_PAYLOAD     = "payload";
+    // AirShareFragment provides username, servicename
+    private static final String ARG_MODE    = "mode";
+    private static final String ARG_PAYLOAD = "payload";
 
-    public static enum Mode { SEND, RECEIVE, BOTH }
+    public enum Mode { SEND, RECEIVE, BOTH }
 
-    public static interface PeerFragmentListener {
+    public interface PeerFragmentListener {
 
         /**
          * A transfer was received from a peer.
          * Called when mode is {@link Mode#RECEIVE} or {@link Mode#BOTH}
          */
-        public void onDataReceived(@Nullable byte[] payload,
-                                   @NonNull Peer sender);
+        void onDataReceived(@NonNull PeerFragment fragment,
+                            @Nullable byte[] payload,
+                            @NonNull Peer sender);
 
         /**
          * A transfer was sent to a peer.
          * Called when mode is {@link Mode#SEND} or {@link Mode#BOTH}
          */
-        public void onDataSent(@Nullable byte[] data,
-                               @NonNull Peer recipient);
+        void onDataSent(@NonNull PeerFragment fragment,
+                        @Nullable byte[] data,
+                        @NonNull Peer recipient);
 
         /**
          * The user selected recipient to receive data. Provide that data in a call
          * to {@link #sendDataToPeer(byte[], pro.dbro.airshare.session.Peer)}
          * Called when mode is {@link Mode#BOTH}
          */
-        public void onDataRequestedForPeer(@NonNull Peer recipient);
+        void onDataRequestedForPeer(@NonNull PeerFragment fragment,
+                                    @NonNull Peer recipient);
 
         /**
          * The fragment is complete and should be removed by the host Activity.
@@ -89,7 +87,8 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
          * If exception is null, the fragment has completed it's requested operation,
          * else an error occurred.
          */
-        public void onFinished(Exception exception);
+        void onFinished(@NonNull PeerFragment fragment,
+                        @Nullable Exception exception);
 
     }
 
@@ -100,8 +99,6 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
     private AirShareService.ServiceBinder serviceBinder;
 
     private Mode mode;
-    private String username;
-    private String serviceName;
 
     private byte[] payload;
 
@@ -109,7 +106,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
                                       @NonNull String username,
                                       @NonNull String serviceName) {
         Bundle bundle = new Bundle();
-        bundle.putSerializable(BUNDLE_PAYLOAD, toSend);
+        bundle.putSerializable(ARG_PAYLOAD, toSend);
         return init(bundle, Mode.SEND, username, serviceName);
     }
 
@@ -130,9 +127,9 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
 
         if (bundle == null) bundle = new Bundle();
 
-        bundle.putSerializable(BUNDLE_MODE, mode);
-        bundle.putString(BUNDLE_USERNAME, username);
-        bundle.putString(BUNDLE_SERVICENAME, serviceName);
+        bundle.putSerializable(ARG_MODE, mode);
+        bundle.putString(AirShareFragment.ARG_USERNAME, username);
+        bundle.putString(AirShareFragment.ARG_SERVICENAME, serviceName);
 
         PeerFragment fragment = new PeerFragment();
         fragment.setArguments(bundle);
@@ -148,10 +145,8 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
         super.onCreate(savedInstanceState);
         setAirShareCallback(this);
         if (getArguments() != null) {
-            mode = (Mode) getArguments().getSerializable(BUNDLE_MODE);
-            username = getArguments().getString(BUNDLE_USERNAME);
-            serviceName = getArguments().getString(BUNDLE_SERVICENAME);
-            payload = (byte[]) getArguments().getSerializable(BUNDLE_PAYLOAD);
+            mode = (Mode) getArguments().getSerializable(ARG_MODE);
+            payload = (byte[]) getArguments().getSerializable(ARG_PAYLOAD);
         }
     }
 
@@ -197,7 +192,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
      * Send data to recipient. Used when mode is {@link Mode#BOTH}.
      *
      * Should be called by a client in response to the PeerFragmentCallback method:
-     * {@link pro.dbro.airshare.app.ui.PeerFragment.PeerFragmentListener#onDataRequestedForPeer(pro.dbro.airshare.session.Peer)}
+     * {@link pro.dbro.airshare.app.ui.PeerFragment.PeerFragmentListener#onDataRequestedForPeer(PeerFragment, Peer)}
      */
     public void sendDataToPeer(byte[] data, Peer recipient) {
         serviceBinder.send(data, recipient);
@@ -213,7 +208,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
 
             case BOTH:
 
-                callback.onDataRequestedForPeer(peer);
+                callback.onDataRequestedForPeer(this, peer);
                 break;
 
             case RECEIVE:
@@ -223,26 +218,26 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
     }
 
     @Override
-    public void onDataRecevied(byte[] data, Peer sender, Exception exception) {
+    public void onDataRecevied(@NonNull AirShareService.ServiceBinder binder, byte[] data, @NonNull Peer sender, Exception exception) {
         if (callback == null) return; // Fragment was detached but not destroyed
 
-        callback.onDataReceived(data, sender);
+        callback.onDataReceived(this, data, sender);
 
         if (mode == Mode.RECEIVE)
-            callback.onFinished(null);
+            callback.onFinished(this, null);
     }
 
     @Override
-    public void onDataSent(byte[] data, Peer recipient, Exception exception) {
+    public void onDataSent(@NonNull AirShareService.ServiceBinder binder, byte[] data, @NonNull Peer recipient, Exception exception) {
         if (callback == null) return; // Fragment was detached but not destroyed
-        callback.onDataSent(data, recipient);
+        callback.onDataSent(this, data, recipient);
 
         if (mode == Mode.SEND)
-            callback.onFinished(null);
+            callback.onFinished(this, null);
     }
 
     @Override
-    public void onPeerStatusUpdated(Peer peer, Transport.ConnectionStatus newStatus, boolean peerIsHost) {
+    public void onPeerStatusUpdated(@NonNull AirShareService.ServiceBinder binder, @NonNull Peer peer, @NonNull Transport.ConnectionStatus newStatus, boolean peerIsHost) {
         switch (newStatus) {
             case CONNECTED:
                 peerAdapter.notifyPeerAdded(peer);
@@ -260,13 +255,8 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
     }
 
     @Override
-    public void onPeerTransportUpdated(@NonNull Peer peer, int newTransportCode, @Nullable Exception exception) {
+    public void onPeerTransportUpdated(@NonNull AirShareService.ServiceBinder binder, @NonNull Peer peer, int newTransportCode, @Nullable Exception exception) {
         // do nothing for now
-    }
-
-    @Override
-    public void registrationRequired() {
-        registerUserForService(username, serviceName);
     }
 
     @Override
@@ -292,7 +282,7 @@ public class PeerFragment extends AirShareFragment implements AirShareService.Ca
     @Override
     public void onFinished(Exception e) {
         if (callback == null) return; // Fragment was detached but not destroyed
-        callback.onFinished(e);
+        callback.onFinished(this, e);
     }
 
 }

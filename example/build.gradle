@@ -29,4 +29,5 @@ dependencies {
 //    compile fileTree(dir: 'libs', include: ['*.jar'])
     compile project(':sdk')
     compile 'com.nispok:snackbar:2.10.6'
+    compile 'com.android.support:appcompat-v7:22.1.1'
 }

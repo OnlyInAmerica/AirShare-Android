@@ -22,5 +22,9 @@
     <string name="quote_placeholder">And the end of all our exploring will be to arrive where we started and know the place for the first time.</string>
     <string name="author_placeholder">Thomas Stearns Eliot</string>
     <string name="send">Send</string>
+    <string name="title_activity_advanced_use">AdvancedUseActivity</string>
+
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
 
 </resources>

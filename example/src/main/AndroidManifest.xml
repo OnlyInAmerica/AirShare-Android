@@ -8,17 +8,20 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/AppTheme" >
-
         <service android:name="pro.dbro.airshare.app.AirShareService" />
 
         <activity
             android:name=".ui.activity.MainActivity"
-            android:screenOrientation="portrait">
+            android:screenOrientation="portrait" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+        <activity
+            android:name=".ui.activity.AdvancedUseActivity"
+            android:label="@string/title_activity_advanced_use" >
         </activity>
     </application>
 

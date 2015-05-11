@@ -2,7 +2,6 @@ package pro.dbro.airshare.app.ui;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.Fragment;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -15,6 +14,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.Fragment;
 import android.widget.TextView;
 
 import pro.dbro.airshare.app.AirShareService;
@@ -31,28 +31,27 @@ import timber.log.Timber;
  */
 public class AirShareFragment extends Fragment implements ServiceConnection {
 
-    public static interface Callback {
-
-        /**
-         * Indicates AirShare needs to be initialized with a Username
-         * and Service Name via {@link #registerUserForService(String, String)}
-         */
-        public void registrationRequired();
+    public interface Callback {
 
         /**
          * Indicates AirShare is ready
          */
-        public void onServiceReady(@NonNull AirShareService.ServiceBinder serviceBinder);
+        void onServiceReady(@NonNull AirShareService.ServiceBinder serviceBinder);
 
         /**
          * Indicates the AirShare service is finished.
          * This would occur if the user declined to enable required resources like Bluetooth
          */
-        public void onFinished(@Nullable Exception exception);
+        void onFinished(@Nullable Exception exception);
 
     }
 
+    protected static final String ARG_USERNAME = "uname";
+    protected static final String ARG_SERVICENAME = "sname";
+
     private Callback callback;
+    private String username;
+    private String servicename;
     private AirShareService.ServiceBinder serviceBinder;
     private boolean didIssueServiceUnbind = false;
     private boolean serviceBound = false;  // Are we bound to the ChatService?
@@ -63,8 +62,14 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
 
     private LocalPeer localPeer;
 
-    public static AirShareFragment newInstance(Callback callback) {
+    public static AirShareFragment newInstance(String username, String serviceName, Callback callback) {
+
+        Bundle bundle = new Bundle();
+        bundle.putString(ARG_USERNAME, username);
+        bundle.putString(ARG_SERVICENAME, serviceName);
+
         AirShareFragment fragment = new AirShareFragment();
+        fragment.setArguments(bundle);
         fragment.setAirShareCallback(callback);
         return fragment;
     }
@@ -80,8 +85,15 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Retain our instance across Activity re-creations unless added to back stack
         setRetainInstance(true);
         serviceBound = false; // onServiceDisconnected may not be called before fragment destroyed
+
+        username = getArguments().getString(ARG_USERNAME);
+        servicename = getArguments().getString(ARG_SERVICENAME);
+
+        if (username == null || servicename == null)
+            throw new IllegalStateException("username and servicename cannot be null");
     }
 
     @Override
@@ -205,14 +217,10 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
             registerBroadcastReceiver();
             showEnableBluetoothDialog();
         } else {
-            // Bluetooth Enabled, Check if primary identity is created
-            // TODO : Persist localPeer
-            localPeer = serviceBinder.getLocalPeer();
-            if (localPeer == null) {
-                if (callback != null) callback.registrationRequired();
-            } else {
-                if (callback != null) callback.onServiceReady(serviceBinder);
-            }
+            // Bluetooth Enabled, Register primary identity
+            serviceBinder.registerLocalUserWithService(username, servicename);
+
+            if (callback != null) callback.onServiceReady(serviceBinder);
         }
     }
 
@@ -253,14 +261,6 @@ public class AirShareFragment extends Fragment implements ServiceConnection {
         mBluetoothEnableDialog = builder.create();
 
         mBluetoothEnableDialog.show();
-    }
-
-    public void registerUserForService(String username, String serviceName) {
-        Timber.d("Username selected %s", username);
-
-        serviceBinder.registerLocalUserWithService(username, serviceName);
-
-        callback.onServiceReady(serviceBinder);
     }
 
 }

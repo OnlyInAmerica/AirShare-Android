@@ -171,7 +171,7 @@ public class SessionManager implements Transport.TransportCallback,
         for (Transport transport : transports) {
             supplementalTransport = transport;
 
-            if (!remotePeer.supportsTransport(supplementalTransport.getTransportCode())) {
+            if (!remotePeer.supportsTransportWithCode(supplementalTransport.getTransportCode())) {
                 Timber.d("Peer does not support supplementary transport code %d", supplementalTransport.getTransportCode());
                 supplementalTransport = null;
             }

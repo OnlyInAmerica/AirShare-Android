@@ -25,7 +25,7 @@ public class LocalPeer extends Peer {
                         transports | WifiTransport.TRANSPORT_CODE :
                         transports;
 
-        Timber.d("LocalPeer supports WifiDirect %b %b", doesDeviceSupportWifiDirect(context), supportsTransport(WifiTransport.TRANSPORT_CODE));
+        Timber.d("LocalPeer supports WifiDirect %b %b", doesDeviceSupportWifiDirect(context), supportsTransportWithCode(WifiTransport.TRANSPORT_CODE));
 
     }
 
