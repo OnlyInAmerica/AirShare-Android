@@ -17,13 +17,10 @@ P2P networking should be as simple as:
 
 ## Usage
 
-### Synchronous Sharing
+### Synchronous AirDrop-Style Sharing
 
-AirShare's `PeerFragment` enables a simple sharing experience inspired by Apple's AirDrop. PeerFragment provides a basic UI for sender and receiver that allows senders to select nearby recipients, and recipients to see nearby senders.
+AirShare's `PeerFragment` provides a simple sharing experience between mobile app instances in the foreground, with the sending user manually selecting the recipient. PeerFragment provides a UI to facilitate recipient selection and reports events via `PeerFragmentListener`, which your hosting Activity must implement.
 
-You create a `PeerFragment` with one of three static creators depending on the local client's role in the exchange (Sending, Receiving, or Both):
-
-Below is an example `Activity` illustrating comprehensive use of `PeerFragment`.
 
 ```java
 public class SyncShareActivity extends Activity
@@ -70,9 +67,10 @@ public class SyncShareActivity extends Activity
 
     @Override
     public void onDataRequestedForPeer(@NonNull Peer recipient) {
-        // If you create your PeerFragment in BOTH mode, this callback
-        // will indicate the user selected a peer recipient and it is your duty
-        // to provide the sendDataToPeer
+        // If you create your PeerFragment in BOTH mode,
+        // PeerFragment.toSendAndReceive("username", "service"), 
+        // this callback will indicate the user selected a peer 
+        // recipient and it is your duty to provide the sendDataToPeer
     }
 
     @Override
