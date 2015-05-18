@@ -151,10 +151,10 @@ public class AdvancedUseActivity extends AppCompatActivity
                                             boolean peerIsHost) {
 
                 if (newStatus == Transport.ConnectionStatus.CONNECTED) {
-                    airShareBinder.send("Hello!".getBytes(), peer);
+                    binder.send("Hello!".getBytes(), peer);
 
                     if (peer.supportsTransportWithCode(WifiTransport.TRANSPORT_CODE))
-                        airShareBinder.requestTransportUpgrade(peer);
+                        binder.requestTransportUpgrade(peer);
                 }
                 // Handle peer disconnected
             }
@@ -166,7 +166,7 @@ public class AdvancedUseActivity extends AppCompatActivity
                                                @Nullable Exception exception) {
                 if (exception == null) {
                     // Successfully upgraded connection with peer to WiFi Transport
-                    airShareBinder.send("Hello at high speed!".getBytes(), peer);
+                    binder.send("Hello at high speed!".getBytes(), peer);
                 }
             }
         });
