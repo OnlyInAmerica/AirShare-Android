@@ -1,20 +1,30 @@
 # [AirShare-Android](https://github.com/OnlyInAmerica/AirShare-Android)
 
+A library designed to ease P2P communication between Android and iOS devices. Use AirShare to build software that doesn't require the Internet to discover and interact with peers, or to create unique networks based on the geographical connections of their users.
+
+Also see the [iOS library](https://github.com/chrisballinger/AirShare).
+
 **Under Development : APIs subject to change**
-
-An experiment in easing P2P communication between Android and iOS devices. This experiment requires Android 5.0 and a device capable of operation as both a Bluetooth LE peripheral and central.
-
-Also see the [iOS library](https://github.com/chrisballinger/AirShare)
 
 ## Motivation
 
 To abstract away the particulars of connection negotiation with clients over radio technologies like BLE and WiFi.
 P2P networking should be as simple as:
 
-1. Assign an identity to your local user and to the service this user belongs to
-1. Express an intent to discover other users, or make your local user discoverable
+1. Express an identity for your local device's user and to the service this user belongs to
+1. Express an intent to discover peers on remote devices, or make your local user discoverable
 1. (Optional) When a remote peer is discovered, query available transports and upgrade transport if desired.
-1. Exchange arbitrary data with discovered users over a plain serial interface
+1. Exchange arbitrary data with discovered peers over a plain serial interface
+
+## Requirements
+
++ Android 5.0
++ A device capable of Bluetooth LE peripheral and central operation
+
+## Example Apps
+
++ The [example](https://github.com/OnlyInAmerica/AirShare-Android/tree/master/example) module of this repository illustrates simple synchronous sharing of structured data.
++ [BLEMeshChat](https://github.com/OnlyInAmerica/BLEMeshChat) is a more advanced example featuring background operation and store-and-forward messaging.
 
 ## Usage
 
