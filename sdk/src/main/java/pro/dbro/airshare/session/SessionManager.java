@@ -36,28 +36,28 @@ public class SessionManager implements Transport.TransportCallback,
 
     public interface SessionManagerCallback {
 
-        void peerStatusUpdated(@NonNull Peer peer,
-                               @NonNull Transport.ConnectionStatus newStatus,
-                               boolean isHost);
+        void peerStatusUpdated       (@NonNull Peer peer,
+                                      @NonNull Transport.ConnectionStatus newStatus,
+                                      boolean isHost);
 
-        void peerTransportUpdated(@NonNull Peer peer,
-                                  int newTransportCode,
-                                  @Nullable Exception exception);
+        void peerTransportUpdated    (@NonNull Peer peer,
+                                      int newTransportCode,
+                                      @Nullable Exception exception);
 
         void messageReceivingFromPeer(@NonNull SessionMessage message,
                                       @NonNull Peer recipient,
                                       float progress);
 
-        void messageReceivedFromPeer(@NonNull SessionMessage message,
-                                     @NonNull Peer recipient);
+        void messageReceivedFromPeer (@NonNull SessionMessage message,
+                                      @NonNull Peer recipient);
 
-        void messageSendingToPeer(@NonNull SessionMessage message,
-                                  @NonNull Peer recipient,
-                                  float progress);
+        void messageSendingToPeer    (@NonNull SessionMessage message,
+                                      @NonNull Peer recipient,
+                                      float progress);
 
-        void messageSentToPeer(@NonNull SessionMessage message,
-                               @NonNull Peer recipient,
-                               @Nullable Exception exception);
+        void messageSentToPeer       (@NonNull SessionMessage message,
+                                      @NonNull Peer recipient,
+                                      @Nullable Exception exception);
 
     }
 
