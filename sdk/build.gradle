@@ -21,7 +21,7 @@ android {
 
     // Require DEBUG variant published to enable Hugo annotation based method logging
     // see http://tools.android.com/tech-docs/new-build-system/user-guide#TOC-Library-Publication
-    //defaultPublishConfig "debug"
+    defaultPublishConfig "debug"
 
     packagingOptions {
         exclude 'META-INF/LICENSE.txt'
@@ -33,7 +33,7 @@ dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     compile 'com.android.support:cardview-v7:21.0.3'
     compile 'com.android.support:recyclerview-v7:21.0.3'
-    compile 'com.android.support:support-v4:22.1.1'
+    compile 'com.android.support:support-v4:22.2.0'
     compile 'com.jakewharton.timber:timber:2.7.1'
     compile 'org.apache.directory.studio:org.apache.commons.codec:1.8'
     compile 'com.google.guava:guava:18.0'

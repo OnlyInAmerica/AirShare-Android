@@ -83,7 +83,7 @@ public class BLETransport extends Transport implements BLETransportCallback {
 
         central = new BLECentral(context, serviceUUID);
         central.setTransportCallback(this);
-        central.requestNotifyOnCharacteristic(dataCharacteristic);
+        central.requestNotifyOnCharacteristicUUID(dataCharacteristic.getUuid());
 
         if (isLollipop()) {
             peripheral = new BLEPeripheral(context, serviceUUID);

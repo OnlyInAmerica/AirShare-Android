@@ -24,6 +24,8 @@ import android.widget.Toast;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.UnknownServiceException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,27 +46,30 @@ import timber.log.Timber;
 
 /**
  * A basic BLE Central device that discovers peripherals.
- *
+ * <p/>
  * Upon connection to a Peripheral this device performs a few initialization steps in order:
  * 1. Requests an MTU
  * 2. (On response to the MTU request) discovers services
  * 3. (On response to service discovery) reports connection
- *
+ * <p/>
  * Created by davidbrodsky on 10/2/14.
  */
 // TEMPORARY - Should add 18 APIs for use on older platforms
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class BLECentral {
-    public static final String TAG = "BLECentral";
 
     public static final UUID CLIENT_CHARACTERISTIC_CONFIG = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
     private final Set<UUID> notifyUUIDs = new HashSet<>();
 
-    /** Peripheral MAC Address -> Set of characteristics */
+    /**
+     * Peripheral MAC Address -> Set of characteristics
+     */
     private final HashMap<String, HashSet<BluetoothGattCharacteristic>> discoveredCharacteristics = new HashMap<>();
 
-    /** Peripheral MAC Address -> Peripheral */
+    /**
+     * Peripheral MAC Address -> Peripheral
+     */
     private final BiMap<String, BluetoothGatt> connectedDevices = HashBiMap.create();
 
     /**
@@ -72,7 +78,9 @@ public class BLECentral {
      */
     private final Set<String> connectingDevices = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
 
-    /** Peripheral MAC Address -> Maximum Transmission Unit */
+    /**
+     * Peripheral MAC Address -> Maximum Transmission Unit
+     */
     private HashMap<String, Integer> mtus = new HashMap<>();
 
     private Context context;
@@ -83,7 +91,7 @@ public class BLECentral {
     private ConnectionGovernor connectionGovernor;
     private BLETransportCallback transportCallback;
 
-    private boolean isScanning = false;
+    private boolean isScanning = false;         // Are we currently scanning
 
     // <editor-fold desc="Public API">
 
@@ -102,8 +110,22 @@ public class BLECentral {
         this.transportCallback = callback;
     }
 
-    public void requestNotifyOnCharacteristic(BluetoothGattCharacteristic characteristic) {
-        notifyUUIDs.add(characteristic.getUuid());
+    /**
+     * Request notification from future connected peripherals on the given characteristic.
+     * This call does not affect peripherals currently connected, so you'd generally
+     * want to call this before {@link #start()}.
+     */
+    public void requestNotifyOnCharacteristicUUID(UUID characteristicUUID) {
+        notifyUUIDs.add(characteristicUUID);
+    }
+
+    /**
+     * @return a Set of {@link BluetoothGattCharacteristic}s discovered on the given identifier
+     * reported by {@link BLETransportCallback#identifierUpdated(BLETransportCallback.DeviceType, String, Transport.ConnectionStatus, Map)}
+     */
+    @Nullable
+    public Set<BluetoothGattCharacteristic> getDiscoveredCharacteristics(@NonNull String identifier) {
+        return discoveredCharacteristics.get(identifier);
     }
 
     public void start() {
@@ -127,7 +149,9 @@ public class BLECentral {
         return connectedDevices.containsKey(deviceAddress);
     }
 
-    public @Nullable Integer getMtuForIdentifier(String identifier) {
+    public
+    @Nullable
+    Integer getMtuForIdentifier(String identifier) {
         return mtus.get(identifier);
     }
 
@@ -150,8 +174,8 @@ public class BLECentral {
         discoveredCharacteristic.setValue(data);
 
         if ((discoveredCharacteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) !=
-                                                        BluetoothGattCharacteristic.PROPERTY_WRITE)
-            throw new IllegalArgumentException(String.format("Requested write on Characteristic %s without Notify Property",
+                BluetoothGattCharacteristic.PROPERTY_WRITE)
+            throw new IllegalArgumentException(String.format("Requested write on Characteristic %s without Write Property",
                     characteristicUuid.toString()));
 
         BluetoothGatt recipient = connectedDevices.get(deviceAddress);
@@ -189,7 +213,6 @@ public class BLECentral {
             Toast.makeText(context, R.string.bt_unavailable, Toast.LENGTH_SHORT).show();
             return;
         }
-
     }
 
     public void setScanCallback(ScanCallback callback) {
@@ -220,7 +243,16 @@ public class BLECentral {
                 }
                 connectingDevices.add(scanResult.getDevice().getAddress());
                 Timber.d("Initiating connection to " + scanResult.getDevice().getAddress());
-                scanResult.getDevice().connectGatt(context, false, new BluetoothGattCallback() {
+
+                // Our BluetoothGattCallback will interact with a newly discovered peripheral
+                // in the following order:
+                // 1. Discover services
+                // 2. When services are discovered, subscribe to notification on requested characteristic, if present.
+                //    If we cannot resolve the target service or characteristic, disconnect and refresh device cache
+                //    to ensure next service discovery will force an actual response from the peripheral.
+                // 3. Negotiate an upgraded MTU size
+                // 4. On successful MTU negotiation, report connection to callback
+                BluetoothGattCallback callback = new BluetoothGattCallback() {
                     @Override
                     public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
 
@@ -229,7 +261,7 @@ public class BLECentral {
                             // It appears that certain events (like disconnection) won't have a GATT_SUCCESS status
                             // even when they proceed as expected, at least with the Motorola bluetooth stack
                             if (status != BluetoothGatt.GATT_SUCCESS)
-                                Timber.w("onConnectionStateChange with newState %d and non-success status %s", newState, gatt.getDevice().getAddress());
+                                Timber.w("onConnectionStateChange with %s newState %d and non-success status %d", gatt.getDevice().getAddress(), newState, status);
 
                             Set<BluetoothGattCharacteristic> characteristicSet;
 
@@ -241,7 +273,7 @@ public class BLECentral {
                                     for (BluetoothGattCharacteristic characteristic : characteristicSet) {
                                         if (notifyUUIDs.contains(characteristic.getUuid())) {
                                             Timber.d("Attempting to unsubscribe on disconneting");
-                                            setIndictaionSubscription(gatt, characteristic, false);
+                                            setIndicationSubscription(gatt, characteristic, false);
                                         }
                                     }
                                     discoveredCharacteristics.remove(gatt.getDevice().getAddress());
@@ -252,6 +284,8 @@ public class BLECentral {
                                     Timber.d("Disconnected from " + gatt.getDevice().getAddress());
                                     connectedDevices.remove(gatt.getDevice().getAddress());
                                     connectingDevices.remove(gatt.getDevice().getAddress());
+                                    mtus.remove(gatt.getDevice().getAddress());
+
                                     if (transportCallback != null)
                                         transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
                                                 gatt.getDevice().getAddress(),
@@ -263,12 +297,12 @@ public class BLECentral {
                                         for (BluetoothGattCharacteristic characteristic : characteristicSet) {
                                             if (notifyUUIDs.contains(characteristic.getUuid())) {
                                                 Timber.d("Attempting to unsubscribe before disconnet");
-                                                setIndictaionSubscription(gatt, characteristic, false);
+                                                setIndicationSubscription(gatt, characteristic, false);
                                             }
                                         }
                                         // Gatt will be closed on result of descriptor write
                                     } else
-                                        gatt.close();
+                                        gatt.close(); // Could also try to re-connect
 
                                     discoveredCharacteristics.remove(gatt.getDevice().getAddress());
 
@@ -276,12 +310,14 @@ public class BLECentral {
 
                                 case BluetoothProfile.STATE_CONNECTED:
                                     // Though we're connected, we shouldn't actually report
-                                    // connection until we've discovered all service characteristics
+                                    // connection until we've discovered all service characteristics,
+                                    // negotiated an MTU, and subscribed to notification characteristics
+                                    // if appropriate.
 
-                                    boolean mtuSuccess = gatt.requestMtu(BLETransport.DEFAULT_MTU_BYTES);
+                                    boolean success = gatt.discoverServices();
 
-                                    Timber.d("Connected to %s. Requested MTU success %b", gatt.getDevice().getAddress(),
-                                            mtuSuccess);
+                                    Timber.d("Connected to %s. Discovered services success %b", gatt.getDevice().getAddress(),
+                                            success);
                                     break;
                             }
 
@@ -290,33 +326,19 @@ public class BLECentral {
                     }
 
                     @Override
-                    public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
-                        Timber.d("Got MTU (%d bytes) for device %s. Was changed successfully: %b",
-                                 mtu,
-                                 gatt.getDevice().getAddress(),
-                                 status == BluetoothGatt.GATT_SUCCESS);
-
-                        mtus.put(gatt.getDevice().getAddress(), mtu);
-
-                        // TODO: Can we craft characteristics and avoid discovery step?
-                        boolean discovering = gatt.discoverServices();
-                        Timber.d("Discovering services : " + discovering);
-                    }
-
-                    @Override
                     public void onServicesDiscovered(BluetoothGatt gatt, int status) {
                         if (status == BluetoothGatt.GATT_SUCCESS)
                             Timber.d("Discovered services");
                         else
                             Timber.d("Discovered services appears unsuccessful with code " + status);
-                        // TODO: Keep this here to examine characteristics
-                        // eventually we should get rid of the discoverServices step
+
                         boolean foundService = false;
                         try {
                             List<BluetoothGattService> serviceList = gatt.getServices();
                             for (BluetoothGattService service : serviceList) {
+                                Timber.d("Discovered service %s", service.getUuid().toString());
                                 if (service.getUuid().equals(serviceUUID)) {
-                                    Timber.d("Discovered Service");
+                                    Timber.d("Discovered target Service");
                                     foundService = true;
                                     HashSet<BluetoothGattCharacteristic> characteristicSet = new HashSet<>();
                                     characteristicSet.addAll(service.getCharacteristics());
@@ -324,9 +346,13 @@ public class BLECentral {
 
                                     for (BluetoothGattCharacteristic characteristic : characteristicSet) {
                                         if (notifyUUIDs.contains(characteristic.getUuid())) {
-                                            setIndictaionSubscription(gatt, characteristic, true);
+                                            setIndicationSubscription(gatt, characteristic, true);
                                         }
                                     }
+                                }
+
+                                for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
+                                    logCharacteristic(characteristic);
                                 }
                             }
 
@@ -340,61 +366,98 @@ public class BLECentral {
                             Timber.d("Exception analyzing discovered services " + e.getLocalizedMessage());
                             e.printStackTrace();
                         }
-                        if (!foundService)
-                            Timber.d("Could not discover chat service!");
-                        super.onServicesDiscovered(gatt, status);
+                        if (!foundService) {
+                            Timber.d("Could not discover target service! Disconnecting");
+                            // Note that this is likely an erroneous state, so let's flush the device cache
+                            // and ensure our next service discovery does not use the device cache
+                            refreshDeviceCache(gatt);
+                            gatt.disconnect();
+                        }
                     }
 
                     /**
                      * Subscribe or Unsubscribe to/from indication of a peripheral's characteristic.
+                     * If the Client Configuration Descriptor is available on the target characteristic,
+                     * explicitly write the ENALBE_NOTIFICATION_VALUE bytes to it.
+                     * If the descriptor could not be found, proceed to MTU negotiation.
                      *
                      * After calling this method you must await the result via
                      * {@link #onDescriptorWrite(android.bluetooth.BluetoothGatt, android.bluetooth.BluetoothGattDescriptor, int)}
                      * before performing any other peripheral actions.
                      */
-                    private void setIndictaionSubscription(BluetoothGatt peripheral,
+                    private void setIndicationSubscription(BluetoothGatt peripheral,
                                                            BluetoothGattCharacteristic characteristic,
                                                            boolean enable) {
 
                         boolean success = peripheral.setCharacteristicNotification(characteristic, enable);
                         Timber.d("Request notification %s %s with sucess %b", enable ? "set" : "unset", characteristic.getUuid().toString(), success);
                         BluetoothGattDescriptor desc = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG);
-                        desc.setValue(enable ? BluetoothGattDescriptor.ENABLE_INDICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
-                        boolean desSuccess = peripheral.writeDescriptor(desc);
-                        Timber.d("Wrote descriptor with success %b", desSuccess);
+                        if (desc != null) {
+                            Timber.d("Found client config descriptor");
+                            desc.setValue(enable ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+                            boolean desSuccess = peripheral.writeDescriptor(desc);
+                            Timber.d("Wrote descriptor %s with success %b", enable ? "enable" : "disable", desSuccess);
+                        } else if (transportCallback != null) {
+                            Timber.d("Did not find client config descriptor.");
+                            boolean mtuSuccess = peripheral.requestMtu(BLETransport.DEFAULT_MTU_BYTES);
+                            Timber.d("Request MTU upgrade with success " + mtuSuccess);
+                        }
                     }
 
+                    /**
+                     * Handle the result of the Client Configuration descriptor write to enable
+                     * notification subscription. If the result indicates the write was successful,
+                     * proceed to MTU negotiation.
+                     */
                     @Override
                     public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
                                                   int status) {
 
-                        Timber.d("onDescriptorWrite");
+                        Timber.d("onDescriptorWrite with status " + status);
                         if (status == BluetoothGatt.GATT_SUCCESS && transportCallback != null) {
 
-                            if (Arrays.equals(descriptor.getValue(), BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
-                                transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
-                                        gatt.getDevice().getAddress(),
-                                        Transport.ConnectionStatus.CONNECTED,
-                                        null);
+                            if (Arrays.equals(descriptor.getValue(), BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)) {
+
+                                boolean success = gatt.requestMtu(BLETransport.DEFAULT_MTU_BYTES);
+                                Timber.d("Request MTU upgrade with success " + success);
 
                             } else if (Arrays.equals(descriptor.getValue(), BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)) {
                                 Timber.d("disabled indications successfully. Closing gatt");
                                 gatt.close();
+                            } else {
+                                Timber.e("Unknown descriptor value %s", descriptor.getValue() == null ? "null" : DataUtil.bytesToHex(descriptor.getValue()));
                             }
                         }
                     }
 
                     @Override
+                    public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+                        Timber.d("Got MTU (%d bytes) for device %s. Was changed successfully: %b",
+                                mtu,
+                                gatt.getDevice().getAddress(),
+                                status == BluetoothGatt.GATT_SUCCESS);
+
+                        boolean firstMtuNegotiation = !mtus.containsKey(gatt.getDevice().getAddress());
+                        mtus.put(gatt.getDevice().getAddress(), mtu);
+
+                        if (firstMtuNegotiation) {
+                            transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
+                                    gatt.getDevice().getAddress(),
+                                    Transport.ConnectionStatus.CONNECTED,
+                                    null);
+                        }
+                    }
+
+                    @Override
                     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-                        Timber.d("onCharacteristicChanged %s with %d bytes", characteristic.getUuid().toString().substring(0,5),
-                                                                             characteristic.getValue().length);
+                        Timber.d("onCharacteristicChanged %s with %d bytes", characteristic.getUuid().toString().substring(0, 5),
+                                characteristic.getValue().length);
 
                         if (transportCallback != null)
                             transportCallback.dataReceivedFromIdentifier(BLETransportCallback.DeviceType.CENTRAL,
-                                                                         characteristic.getValue(),
-                                                                         gatt.getDevice().getAddress());
+                                    characteristic.getValue(),
+                                    gatt.getDevice().getAddress());
 
-                        super.onCharacteristicChanged(gatt, characteristic);
                     }
 
                     @Override
@@ -411,9 +474,9 @@ public class BLECentral {
 
                         if (transportCallback != null)
                             transportCallback.dataSentToIdentifier(BLETransportCallback.DeviceType.CENTRAL,
-                                                                   characteristic.getValue(),
-                                                                   gatt.getDevice().getAddress(),
-                                                                   exception);
+                                    characteristic.getValue(),
+                                    gatt.getDevice().getAddress(),
+                                    exception);
                     }
 
                     @Override
@@ -422,7 +485,21 @@ public class BLECentral {
                         super.onReadRemoteRssi(gatt, rssi, status);
                     }
 
-                });
+                };
+
+                Method connectGattMethod = null;
+                BluetoothGatt connectGatt;
+
+                // Private API
+                try {
+                    connectGattMethod = scanResult.getDevice().getClass().getMethod("connectGatt", Context.class, boolean.class, BluetoothGattCallback.class, int.class);
+                    connectGattMethod.invoke(scanResult.getDevice(), context, true, callback, 2); // (2 == LE, 1 == BR/EDR)
+                } catch (IllegalArgumentException | InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+                    // The private API changed!
+                }
+
+                // Public API
+//                scanResult.getDevice().connectGatt(context, true, callback);
             }
 
             @Override
@@ -470,13 +547,31 @@ public class BLECentral {
 
     private void logCharacteristic(BluetoothGattCharacteristic characteristic) {
         StringBuilder builder = new StringBuilder();
-        builder.append(characteristic.getUuid().toString().substring(0, 3));
-        builder.append("... instance: ");
+        builder.append("characteristic uuid: ");
+        builder.append(characteristic.getUuid().toString());
+        builder.append("instance: ");
         builder.append(characteristic.getInstanceId());
         builder.append(" properties: ");
+        if ((characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_NOTIFY) == BluetoothGattCharacteristic.PROPERTY_NOTIFY)
+            builder.append(" notify ");
+        if ((characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE) == BluetoothGattCharacteristic.PROPERTY_INDICATE)
+            builder.append(" indicate ");
+        if ((characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) == BluetoothGattCharacteristic.PROPERTY_WRITE)
+            builder.append(" write ");
+
+        builder.append('(');
         builder.append(characteristic.getProperties());
+        builder.append(')');
+
         builder.append(" permissions: ");
+        if ((characteristic.getPermissions() & BluetoothGattCharacteristic.PERMISSION_WRITE) == BluetoothGattCharacteristic.PERMISSION_WRITE)
+            builder.append(" write ");
+        if ((characteristic.getPermissions() & BluetoothGattCharacteristic.PERMISSION_READ) == BluetoothGattCharacteristic.PERMISSION_READ)
+            builder.append(" read ");
+        builder.append('(');
         builder.append(characteristic.getPermissions());
+        builder.append(')');
+
         builder.append(" value: ");
         if (characteristic.getValue() != null)
             builder.append(DataUtil.bytesToHex(characteristic.getValue()));
@@ -498,6 +593,26 @@ public class BLECentral {
         }
         if (characteristic.getDescriptors().size() > 0) builder.append("]");
         Timber.d(builder.toString());
+    }
+
+    /**
+     * Clear the internal GATT server cache so we can ensure the most recent
+     * GATT structure is available. This is not required for production devices
+     * whose GATT structure is stabilized.
+     */
+    private boolean refreshDeviceCache(BluetoothGatt gatt){
+        try {
+            BluetoothGatt localBluetoothGatt = gatt;
+            Method localMethod = localBluetoothGatt.getClass().getMethod("refresh", new Class[0]);
+            if (localMethod != null) {
+                boolean bool = ((Boolean) localMethod.invoke(localBluetoothGatt, new Object[0])).booleanValue();
+                return bool;
+            }
+        }
+        catch (Exception localException) {
+            Timber.e("An exception occured while refreshing device");
+        }
+        return false;
     }
 
     //</editor-fold>

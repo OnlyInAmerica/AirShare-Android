@@ -14,18 +14,21 @@ public class DataUtil {
 
     final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
 
+    public static String bytesToHex(byte[] bytes) {
+        return bytesToHex(bytes, 0, bytes.length);
+    }
+
     /**
-     * When we query rows by a BLOB column we must
-     * convert the BLOB to its String hex form
-     * see:
-     * http://www.sqlite.org/lang_expr.html#litvalue
+     * Pretty print bytes as Hex string in form '0x00 0x01 0x02'
      */
-    public static String  bytesToHex(byte[] bytes) {
-        char[] hexChars = new char[bytes.length * 2];
-        for ( int j = 0; j < bytes.length; j++ ) {
+    public static String bytesToHex(byte[] bytes, int offset, int maxLen) {
+        int bytesToPrint = Math.min(bytes.length - offset, maxLen);
+        char[] hexChars = new char[bytesToPrint * 3];
+        for ( int j = offset; j < bytesToPrint; j++ ) {
             int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+            hexChars[j * 3 ] = hexArray[v >>> 4];
+            hexChars[j * 3 + 1] = hexArray[v & 0x0F];
+            hexChars[j * 3 + 2] = ' ';
         }
         String rawHex = new String(hexChars);
         return rawHex;
