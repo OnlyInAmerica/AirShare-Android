@@ -59,6 +59,8 @@ import timber.log.Timber;
  */
 public class BLECentral {
 
+    private static final boolean REQUEST_MTU_UPGRADE = true;
+
     public static final UUID CLIENT_CHARACTERISTIC_CONFIG = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
     private final Set<UUID> notifyUUIDs = new HashSet<>();
@@ -103,7 +105,7 @@ public class BLECentral {
 
         @Override
         public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-            List <UUID> records = parseUuids(scanRecord);
+            List<UUID> records = parseUuids(scanRecord);
             if (records.contains(serviceUUID))
                 handleNewlyScannedDevice(device);
             else
@@ -184,13 +186,29 @@ public class BLECentral {
                         // if appropriate.
 
                         boolean success = gatt.discoverServices();
-
                         Timber.d("Connected to %s. Discovered services success %b", gatt.getDevice().getAddress(),
                                 success);
                         break;
                 }
+            }
+        }
 
-                super.onConnectionStateChange(gatt, status, newState);
+        @Override
+        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            Timber.d("Got MTU (%d bytes) for device %s. Was changed successfully: %b",
+                    mtu,
+                    gatt.getDevice().getAddress(),
+                    status == BluetoothGatt.GATT_SUCCESS);
+
+            boolean firstMtuNegotiation = !mtus.containsKey(gatt.getDevice().getAddress());
+            mtus.put(gatt.getDevice().getAddress(), mtu);
+
+
+            if (firstMtuNegotiation) {
+                transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
+                        gatt.getDevice().getAddress(),
+                        Transport.ConnectionStatus.CONNECTED,
+                        null);
             }
         }
 
@@ -267,8 +285,10 @@ public class BLECentral {
                 boolean desSuccess = peripheral.writeDescriptor(desc);
                 Timber.d("Wrote descriptor %s with success %b", enable ? "enable" : "disable", desSuccess);
             } else if (transportCallback != null) {
+                // We should bail
+
                 Timber.d("Did not find client config descriptor.");
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                if (REQUEST_MTU_UPGRADE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     boolean mtuSuccess = peripheral.requestMtu(BLETransport.DEFAULT_MTU_BYTES);
                     Timber.d("Request MTU upgrade with success " + mtuSuccess);
                 } else {
@@ -294,9 +314,9 @@ public class BLECentral {
 
                 if (Arrays.equals(descriptor.getValue(), BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)) {
 
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        boolean success = gatt.requestMtu(BLETransport.DEFAULT_MTU_BYTES);
-                        Timber.d("Request MTU upgrade with success " + success);
+                    if (REQUEST_MTU_UPGRADE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        boolean mtuSuccess = gatt.requestMtu(BLETransport.DEFAULT_MTU_BYTES);
+                        Timber.d("Request MTU upgrade with success " + mtuSuccess);
                     } else {
                         transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
                                 gatt.getDevice().getAddress(),
@@ -310,24 +330,6 @@ public class BLECentral {
                 } else {
                     Timber.e("Unknown descriptor value %s", descriptor.getValue() == null ? "null" : DataUtil.bytesToHex(descriptor.getValue()));
                 }
-            }
-        }
-
-        @Override
-        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
-            Timber.d("Got MTU (%d bytes) for device %s. Was changed successfully: %b",
-                    mtu,
-                    gatt.getDevice().getAddress(),
-                    status == BluetoothGatt.GATT_SUCCESS);
-
-            boolean firstMtuNegotiation = !mtus.containsKey(gatt.getDevice().getAddress());
-            mtus.put(gatt.getDevice().getAddress(), mtu);
-
-            if (firstMtuNegotiation) {
-                transportCallback.identifierUpdated(BLETransportCallback.DeviceType.CENTRAL,
-                        gatt.getDevice().getAddress(),
-                        Transport.ConnectionStatus.CONNECTED,
-                        null);
             }
         }
 
@@ -435,6 +437,11 @@ public class BLECentral {
                          UUID characteristicUuid,
                          String deviceAddress) {
 
+        if (!discoveredCharacteristics.containsKey(deviceAddress)) {
+            Timber.w("Have not performed service discovery for %s", deviceAddress);
+            return false;
+        }
+
         BluetoothGattCharacteristic discoveredCharacteristic = null;
 
         for (BluetoothGattCharacteristic characteristic : discoveredCharacteristics.get(deviceAddress)) {
@@ -457,6 +464,7 @@ public class BLECentral {
         BluetoothGatt recipient = connectedDevices.get(deviceAddress);
         if (recipient != null) {
             boolean success = recipient.writeCharacteristic(discoveredCharacteristic);
+            discoveredCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
             // write type should be 2 (Default)
             Timber.d("Wrote %d bytes with type %d to %s with success %b", data.length, discoveredCharacteristic.getWriteType(), deviceAddress, success);
             return success;

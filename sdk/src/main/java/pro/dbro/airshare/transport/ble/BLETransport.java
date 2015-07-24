@@ -47,7 +47,7 @@ import timber.log.Timber;
  */
 public class BLETransport extends Transport implements BLETransportCallback {
 
-    public static final int DEFAULT_MTU_BYTES = 155;
+    public static final int DEFAULT_MTU_BYTES = 100;
 
     public static final int TRANSPORT_CODE = 1;
 
