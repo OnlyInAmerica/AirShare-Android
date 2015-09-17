@@ -93,7 +93,9 @@ public class BLECentral {
     private ConnectionGovernor connectionGovernor;
     private BLETransportCallback transportCallback;
 
-    private boolean isScanning = false;         // Are we currently scanning
+    private boolean isScanningRequested = false; // Is scanning requested? E.g: True between calls to start() and stop()
+    private boolean isScanning = false;          // Are we currently scanning. We might not be scanning though isScanningRequested is true
+                                                 // if we're successfully connected to a target BLE device
 
     /**
      * BLE Scan callback for legacy Android (API 18 - API 20)
@@ -132,7 +134,7 @@ public class BLECentral {
                 // It appears that certain events (like disconnection) won't have a GATT_SUCCESS status
                 // even when they proceed as expected, at least with the Motorola bluetooth stack
                 if (status != BluetoothGatt.GATT_SUCCESS)
-                    Timber.w("onConnectionStateChange with %s newState %d and non-success status %d", gatt.getDevice().getAddress(), newState, status);
+                    Timber.w("onConnectionStateChange with %s newState %s and non-success status %d", gatt.getDevice().getAddress(), getStateName(newState), status);
 
                 Set<BluetoothGattCharacteristic> characteristicSet;
 
@@ -177,6 +179,8 @@ public class BLECentral {
 
                         discoveredCharacteristics.remove(gatt.getDevice().getAddress());
 
+                        if (isScanningRequested) startScanning();
+
                         break;
 
                     case BluetoothProfile.STATE_CONNECTED:
@@ -184,6 +188,8 @@ public class BLECentral {
                         // connection until we've discovered all service characteristics,
                         // negotiated an MTU, and subscribed to notification characteristics
                         // if appropriate.
+
+                        stopScanning();
 
                         boolean success = gatt.discoverServices();
                         Timber.d("Connected to %s. Discovered services success %b", gatt.getDevice().getAddress(),
@@ -369,6 +375,21 @@ public class BLECentral {
             Timber.d(String.format("%s rssi: %d", gatt.getDevice().getAddress(), rssi));
             super.onReadRemoteRssi(gatt, rssi, status);
         }
+
+        private String getStateName(int state) {
+            switch (state) {
+                case BluetoothProfile.STATE_DISCONNECTING:
+                    return "disconnecting";
+                case BluetoothProfile.STATE_DISCONNECTED:
+                    return "disconnected";
+                case BluetoothProfile.STATE_CONNECTING:
+                    return "connecting";
+                case BluetoothProfile.STATE_CONNECTED:
+                    return "connected";
+
+            }
+            return "unknown";
+        }
     };
 
     // <editor-fold desc="Public API">
@@ -407,10 +428,12 @@ public class BLECentral {
     }
 
     public void start() {
+        isScanningRequested = true;
         startScanning();
     }
 
     public void stop() {
+        isScanningRequested = false;
         stopScanning();
         synchronized (connectedDevices) {
             for (BluetoothGatt peripheral : connectedDevices.values()) {
@@ -501,29 +524,33 @@ public class BLECentral {
 
     private void startScanning() {
         if ((btAdapter != null) && (!isScanning)) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                if (scanner == null) {
-                    scanner = btAdapter.getBluetoothLeScanner();
-                }
+            // Temporary abandoning Lollipop BLE Scanning due to issue with Samsung Galaxy S6
+            // where device does not successfully filter by 128-bit Service UUID.
+            // Filtering advertisements in software seems to work on all test devices
 
-                scanCallback = new ScanCallback() {
-                    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-                    @Override
-                    public void onScanResult(int callbackType, ScanResult scanResult) {
-                        handleNewlyScannedDevice(scanResult.getDevice());
-                    }
-
-                    @Override
-                    public void onScanFailed(int errorCode) {
-                        Timber.e("Scan failed with error " + errorCode);
-                    }
-                };
-
-                scanner.startScan(createScanFilters(), createScanSettings(), (ScanCallback) scanCallback);
-
-            } else {
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+//                if (scanner == null) {
+//                    scanner = btAdapter.getBluetoothLeScanner();
+//                }
+//
+//                scanCallback = new ScanCallback() {
+//                    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+//                    @Override
+//                    public void onScanResult(int callbackType, ScanResult scanResult) {
+//                        handleNewlyScannedDevice(scanResult.getDevice());
+//                    }
+//
+//                    @Override
+//                    public void onScanFailed(int errorCode) {
+//                        Timber.e("Scan failed with error " + errorCode);
+//                    }
+//                };
+//
+//                scanner.startScan(createScanFilters(), createScanSettings(), (ScanCallback) scanCallback);
+//
+//            } else {
                 btAdapter.startLeScan(legacyScanCallback);
-            }
+//            }
             isScanning = true;
             Timber.d("Scanning started successfully"); // TODO : This is a lie but I can't find a way to be notified when scan is successful aside from BluetoothGatt Log
             //Toast.makeText(context, context.getString(R.string.scan_started), Toast.LENGTH_SHORT).show();
@@ -549,9 +576,9 @@ public class BLECentral {
     private void stopScanning() {
         if (isScanning) {
             // Cast so we can avoid a class attribute of unavailable type in pre API 21
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-                scanner.stopScan((ScanCallback) scanCallback);
-            else
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+//                scanner.stopScan((ScanCallback) scanCallback);
+//            else
                 btAdapter.stopLeScan(legacyScanCallback);
 
             scanner = null;
