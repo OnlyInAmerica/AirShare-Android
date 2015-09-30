@@ -112,8 +112,6 @@ public class BLECentral {
             List<UUID> records = parseUuids(scanRecord);
             if (records.contains(serviceUUID))
                 handleNewlyScannedDevice(device);
-            else
-                Timber.d("Got advertisement which did not include target service");
         }
     };
 
@@ -293,8 +291,7 @@ public class BLECentral {
                 desc.setValue(enable ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
                 boolean desSuccess = peripheral.writeDescriptor(desc);
                 Timber.d("Wrote descriptor %s with success %b", enable ? "enable" : "disable", desSuccess);
-            } else if (transportCallback != null) {
-                // We should bail
+            } else if (enable && transportCallback != null) {
 
                 Timber.d("Did not find client config descriptor.");
                 if (REQUEST_MTU_UPGRADE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -578,6 +575,7 @@ public class BLECentral {
 
     private void stopScanning() {
         if (isScanning) {
+            Timber.d("Stop Scanning");
             // Cast so we can avoid a class attribute of unavailable type in pre API 21
 //            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
 //                scanner.stopScan((ScanCallback) scanCallback);
@@ -586,6 +584,8 @@ public class BLECentral {
 
             scanner = null;
             isScanning = false;
+        } else {
+            Timber.w("StopScanning requested, but already stopped");
         }
     }
 
@@ -703,6 +703,7 @@ public class BLECentral {
      * with the device.
      */
     private void handleNewlyScannedDevice(final BluetoothDevice device) {
+
         if (connectedDevices.containsKey(device.getAddress())) {
             // If we're already connected, forget it
             //Timber.d("Denied connection. Already connected to  " + scanResult.getDevice().getAddress());
