@@ -17,6 +17,8 @@ import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelUuid;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -179,7 +181,10 @@ public class BLECentral {
 
                         discoveredCharacteristics.remove(gatt.getDevice().getAddress());
 
-                        if (isScanningRequested) startScanning();
+                        if (isScanningRequested) {
+                            Timber.d("Resuming BLE scan on device disconnect");
+                            startScanning();
+                        }
 
                         break;
 
@@ -188,8 +193,6 @@ public class BLECentral {
                         // connection until we've discovered all service characteristics,
                         // negotiated an MTU, and subscribed to notification characteristics
                         // if appropriate.
-
-                        stopScanning();
 
                         boolean success = gatt.discoverServices();
                         Timber.d("Connected to %s. Discovered services success %b", gatt.getDevice().getAddress(),
@@ -699,7 +702,7 @@ public class BLECentral {
      * if we have not already initiated an unterminated connection and are not engaged in an active connection
      * with the device.
      */
-    private void handleNewlyScannedDevice(BluetoothDevice device) {
+    private void handleNewlyScannedDevice(final BluetoothDevice device) {
         if (connectedDevices.containsKey(device.getAddress())) {
             // If we're already connected, forget it
             //Timber.d("Denied connection. Already connected to  " + scanResult.getDevice().getAddress());
@@ -734,13 +737,27 @@ public class BLECentral {
         // In this case we want to perform ATT service discovery, but instead Android might perform
         // Bluetooth classic SDP. The private API allows us to force the LE transport, which seems
         // to alleviate these issues.
+
+        Timber.d("Stopping BLE scan before connection proceeds");
+        stopScanning();
+
         try {
             Method connectGattMethod = device.getClass().getMethod("connectGatt", Context.class, boolean.class, BluetoothGattCallback.class, int.class);
             connectGattMethod.invoke(device, context, true, gattCallback, 2); // (2 == LE, 1 == BR/EDR)
         } catch (IllegalArgumentException | InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
             // The private API changed! Use public API
             Timber.w("Unable to connect via private API. Using public API");
-            device.connectGatt(context, true, gattCallback);
+
+            // Samsung Bug: Must call connectGatt from Main thread
+            // See: http://stackoverflow.com/questions/20069507/gatt-callback-fails-to-register
+            Handler mainHandler = new Handler(Looper.getMainLooper());
+            Runnable myRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    device.connectGatt(context, true, gattCallback);
+                }
+            };
+            mainHandler.post(myRunnable);
         }
     }
 
